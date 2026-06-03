@@ -32,9 +32,10 @@ class ProotManager(private val context: Context) {
         ensureTallocLib()
 
         val sharedDir = File(context.filesDir, "shared")
-        if (!sharedDir.exists() && !sharedDir.mkdirs()) {
-            throw IOException("Failed to create shared directory: ${sharedDir.path}")
-        }
+        sharedDir.mkdirs()
+        
+        val shmDir = File(context.filesDir, "shm")
+        shmDir.mkdirs()
 
         val command = listOf(
             prootBinary.absolutePath,
@@ -44,8 +45,9 @@ class ProotManager(private val context: Context) {
             "-b", "/dev:/dev",
             "-b", "/proc:/proc",
             "-b", "/sys:/sys",
-            "-b", "${sharedDir.path}:/shared",
-            "--rootfs=${rootfsDir.path}",
+            "-b", "${sharedDir.absolutePath}:/shared",
+            "-b", "${shmDir.absolutePath}:/dev/shm",
+            "--rootfs=${rootfsDir.absolutePath}",
             "/bin/bash", "-c", startupScript(resolution)
         )
 
@@ -130,6 +132,8 @@ class ProotManager(private val context: Context) {
         export DISPLAY=:0
         export HOME=/root
         export LANG=en_US.UTF-8
+        export TMPDIR=/tmp
+        export XDG_RUNTIME_DIR=/tmp
 
         # Fix x0vncserver hostname resolution crash
         echo "127.0.0.1 localhost $(hostname 2>/dev/null || echo aptdesk)" > /etc/hosts
@@ -142,7 +146,7 @@ class ProotManager(private val context: Context) {
             sleep 0.5
         done
 
-        startxfce4 &
+        startxfce4 >/var/log/xfce.log 2>&1 &
         x0vncserver -display :0 -rfbport 5900 -SecurityTypes None >/var/log/x0vncserver.log 2>&1 &
         websockify --web=/opt/aptdesk/www/libs/novnc 5901 127.0.0.1:5900 &
         ttyd -p 8081 /bin/bash >/var/log/ttyd.log 2>&1 &
