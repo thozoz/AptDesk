@@ -222,6 +222,9 @@ function updateStatus() {
       setStatText("ram-detail", `${status.ram.used} / ${status.ram.total} GB`);
       setStatText("disk-detail", `${status.disk.used} / ${status.disk.total} GB`);
 
+      setStatText("uptime-detail", status.uptime || '--');
+      setStatText("uptime", `Up ${status.uptime || '--'}`);
+
       const bat = status.battery;
       if (bat) {
         const charge = bat.charging ? '⚡' : '';
@@ -318,12 +321,13 @@ function fetchStatus() {
             cpu: (data.cpu !== null && data.cpu !== undefined) ? data.cpu : null,
             ram: data.ram && typeof data.ram === 'object' ? data.ram : { used: "0", total: "0" },
             disk: data.disk && typeof data.disk === 'object' ? data.disk : { used: "0", total: "0" },
-            battery: data.battery && typeof data.battery === 'object' ? data.battery : null
+            battery: data.battery && typeof data.battery === 'object' ? data.battery : null,
+            uptime: data.uptime || null
         };
     })
     .catch(err => {
         return {
-            status: "error", error: "Connection failed", cpu: 0, ram: { used: "0", total: "0" }, disk: { used: "0", total: "0" }, battery: null
+            status: "error", error: "Connection failed", cpu: 0, ram: { used: "0", total: "0" }, disk: { used: "0", total: "0" }, battery: null, uptime: null
         };
     });
 }

@@ -69,6 +69,11 @@ class WebServer(
                 }
                 put("disk", disk)
                 
+                val uptimeMs = SystemClock.elapsedRealtime()
+                val hours = uptimeMs / 3600000
+                val minutes = (uptimeMs % 3600000) / 60000
+                put("uptime", String.format("%dh %dm", hours, minutes))
+
                 val cpuVal = readCpuUsage()
                 put("cpu", if (cpuVal >= 0) cpuVal else JSONObject.NULL)
                 put("battery", getBatteryInfo())
