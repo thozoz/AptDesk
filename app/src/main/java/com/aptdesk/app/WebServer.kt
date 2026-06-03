@@ -34,6 +34,7 @@ class WebServer(
             uri == "/api/software/search" -> handleSoftwareSearch(session)
             uri == "/api/software/action" -> handleSoftwareAction(session)
             uri == "/api/software/update" -> handleSoftwareUpdate()
+            uri == "/api/fix-filebrowser" -> handleFixFilebrowser(session)
             uri.startsWith("/api/files/") || uri == "/api/files" -> handleFiles(uri)
             else -> newFixedLengthResponse(
                 Response.Status.NOT_FOUND,
@@ -240,6 +241,18 @@ class WebServer(
             }.toString())
         } catch (e: Exception) {
             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"${e.message}\"}")
+        }
+    }
+
+    private fun handleFixFilebrowser(session: IHTTPSession): Response {
+        if (session.method != Method.POST) {
+            return newFixedLengthResponse(Response.Status.METHOD_NOT_ALLOWED, MIME_PLAINTEXT, "POST required")
+        }
+        return try {
+            prootManager.executeCommand("rm -f /var/lib/filebrowser.db")
+            newFixedLengthResponse(Response.Status.OK, "application/json", """{"success":true}""")
+        } catch (e: Exception) {
+            newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", """{"error":"${e.message}"}""")
         }
     }
 

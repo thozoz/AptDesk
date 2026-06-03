@@ -12,6 +12,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -43,67 +48,109 @@ class MainActivity : ComponentActivity() {
 private fun MainScreen(state: AptDeskState.State) {
     val context = LocalContext.current
     val isRunning = state is AptDeskState.State.Running
+    var showResetDialog by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(text = "AptDesk", style = MaterialTheme.typography.displayLarge)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Linux Desktop in your Browser",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(48.dp))
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(text = "AptDesk", style = MaterialTheme.typography.displayLarge)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Linux Desktop in your Browser",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(48.dp))
 
-        if (isRunning) {
-            val ip = (state as AptDeskState.State.Running).ip
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+            if (isRunning) {
+                val ip = (state as AptDeskState.State.Running).ip
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                 ) {
-                    Text("Desktop URL", style = MaterialTheme.typography.labelMedium)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "http://$ip:8080",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("Desktop URL", style = MaterialTheme.typography.labelMedium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "http://$ip:8080",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(48.dp))
+                Button(
+                    onClick = {
+                        val intent = Intent(context, MainService::class.java).apply {
+                            action = MainService.ACTION_STOP
+                        }
+                        context.startService(intent)
+                    },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Stop Backend")
+                }
+            } else {
+                Button(
+                    onClick = {
+                        val intent = Intent(context, MainService::class.java).apply {
+                            action = MainService.ACTION_START
+                        }
+                        ContextCompat.startForegroundService(context, intent)
+                    },
+                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                ) {
+                    Text("Start Backend")
                 }
             }
-            Spacer(modifier = Modifier.height(48.dp))
-            Button(
-                onClick = {
-                    val intent = Intent(context, MainService::class.java).apply {
-                        action = MainService.ACTION_STOP
+        }
+
+        IconButton(
+            onClick = { showResetDialog = true },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Refresh,
+                contentDescription = "Factory Reset Services",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        if (showResetDialog) {
+            AlertDialog(
+                onDismissRequest = { showResetDialog = false },
+                title = { Text("Factory Reset Services") },
+                text = { Text("Are you sure you want to reset all configurations to factory defaults? Your personal files will be preserved, but desktop UI and server settings will be wiped.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showResetDialog = false
+                            val intent = Intent(context, MainService::class.java).apply {
+                                action = MainService.ACTION_RESET
+                            }
+                            context.startService(intent)
+                        }
+                    ) {
+                        Text("Reset", color = MaterialTheme.colorScheme.error)
                     }
-                    context.startService(intent)
                 },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text("Stop Backend")
-            }
-        } else {
-            Button(
-                onClick = {
-                    val intent = Intent(context, MainService::class.java).apply {
-                        action = MainService.ACTION_START
+                dismissButton = {
+                    TextButton(onClick = { showResetDialog = false }) {
+                        Text("Cancel")
                     }
-                    ContextCompat.startForegroundService(context, intent)
-                },
-                modifier = Modifier.fillMaxWidth().height(56.dp)
-            ) {
-                Text("Start Backend")
-            }
+                }
+            )
         }
     }
 }

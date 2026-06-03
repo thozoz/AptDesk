@@ -41,6 +41,19 @@ class MainService : Service() {
                 stopSelf()
                 return START_NOT_STICKY
             }
+            ACTION_RESET -> {
+                if (runningJob?.isActive == true) {
+                    stopBackend()
+                }
+                serviceScope.launch {
+                    try {
+                        rootfsManager.resetServices()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Reset failed", e)
+                    }
+                }
+                return START_NOT_STICKY
+            }
             ACTION_START, null -> {
                 if (runningJob?.isActive == true) {
                     return START_STICKY
@@ -145,6 +158,7 @@ class MainService : Service() {
     companion object {
         const val ACTION_START = "com.aptdesk.app.action.START"
         const val ACTION_STOP = "com.aptdesk.app.action.STOP"
+        const val ACTION_RESET = "com.aptdesk.app.action.RESET"
         private const val CHANNEL_ID = "aptdesk_service"
         private const val NOTIFICATION_ID = 1001
         private const val TAG = "AptDeskService"

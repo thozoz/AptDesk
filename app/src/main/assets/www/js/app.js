@@ -59,6 +59,32 @@ function initDashboard() {
   const softwareSearchBtn = document.getElementById("softwareSearchBtn");
   const softwareListBtn = document.getElementById("softwareListBtn");
   const softwareSearchInput = document.getElementById("softwareSearchInput");
+  const fixFilebrowserBtn = document.getElementById("fixFilebrowserBtn");
+
+  if (fixFilebrowserBtn) {
+    fixFilebrowserBtn.addEventListener("click", () => {
+      if (confirm("Are you sure you want to wipe the filebrowser database? This will reset your settings and fix the password prompt issue.")) {
+        fixFilebrowserBtn.textContent = "Resetting...";
+        fixFilebrowserBtn.disabled = true;
+        fetch("/api/fix-filebrowser", { method: "POST" })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              alert("Database wiped! Please restart the backend to apply changes.");
+            } else {
+              alert("Error: " + data.error);
+            }
+            fixFilebrowserBtn.textContent = "Reset Auth DB";
+            fixFilebrowserBtn.disabled = false;
+          })
+          .catch(err => {
+            alert("Error: " + err);
+            fixFilebrowserBtn.textContent = "Reset Auth DB";
+            fixFilebrowserBtn.disabled = false;
+          });
+      }
+    });
+  }
 
   if (softwareSearchBtn && softwareSearchInput) {
     softwareSearchBtn.addEventListener("click", () => {

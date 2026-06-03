@@ -90,6 +90,10 @@
           </section>
 
           <section class="tab-panel" id="tab-files" data-tab="files">
+            <div class="toolbar">
+              <button class="danger-button" type="button" id="fixFilebrowserBtn">Reset Auth DB</button>
+              <span class="toolbar-meta">Fixes password prompts by wiping filebrowser.db</span>
+            </div>
             <div class="panel placeholder-panel" style="padding: 0; background: #000; overflow: hidden;">
               <iframe id="files-iframe" style="width: 100%; height: calc(100vh - 140px); border: none; display: block;"></iframe>
             </div>

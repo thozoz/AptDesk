@@ -156,12 +156,10 @@ class ProotManager(private val context: Context) {
         websockify --web=/opt/aptdesk/www/libs/novnc 5901 127.0.0.1:5900 &
         ttyd -p 8081 /bin/bash >/var/log/ttyd.log 2>&1 &
         
-        # Start filebrowser (noauth via env var)
+        # Start filebrowser
         chmod +x /opt/aptdesk/www/bin/filebrowser
-        /opt/aptdesk/www/bin/filebrowser config init -d /var/lib/filebrowser.db >/dev/null 2>&1 || true
-        /opt/aptdesk/www/bin/filebrowser config set --auth.method=noauth -d /var/lib/filebrowser.db >/dev/null 2>&1 || true
-        /opt/aptdesk/www/bin/filebrowser users update admin --perm.share=false -d /var/lib/filebrowser.db >/dev/null 2>&1 || true
-        FB_NOAUTH=true /opt/aptdesk/www/bin/filebrowser -b /filesapp -p 8083 -r / -d /var/lib/filebrowser.db -a 127.0.0.1 >/var/log/filebrowser.log 2>&1 &
+        
+        /opt/aptdesk/www/bin/filebrowser -b /filesapp -p 8083 -r / -d /var/lib/filebrowser.db -a 127.0.0.1 --noauth >/var/log/filebrowser.log 2>&1 &
         
         # Strip Windows CRLF from Caddyfile before parsing
         sed -i 's/\r//' /opt/aptdesk/Caddyfile

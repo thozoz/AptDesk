@@ -183,6 +183,32 @@ class RootfsManager(private val context: Context) {
     }
 
     @Throws(IOException::class)
+    fun resetServices() {
+        val filesToWipe = listOf(
+            File(rootfsDir, "var/lib/filebrowser.db"),
+            File(rootfsDir, "root/.vnc"),
+            File(rootfsDir, "root/.config/xfce4"),
+            File(rootfsDir, "root/.cache"),
+            File(rootfsDir, "tmp"),
+            File(rootfsDir, "var/log")
+        )
+
+        for (file in filesToWipe) {
+            if (file.exists()) {
+                if (file.isDirectory) {
+                    deleteRecursively(file)
+                } else {
+                    file.delete()
+                }
+            }
+        }
+        
+        // Ensure essential directories are recreated
+        File(rootfsDir, "tmp").mkdirs()
+        File(rootfsDir, "var/log").mkdirs()
+    }
+
+    @Throws(IOException::class)
     fun extractAssets() {
         AptDeskState.state.value = AptDeskState.State.ExtractingAssets
         val targetBase = File(rootfsDir, "opt/aptdesk")
