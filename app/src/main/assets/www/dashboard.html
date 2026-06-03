@@ -5,13 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AptDesk | Dashboard</title>
     <link rel="stylesheet" href="css/style.css" />
-    <link rel="stylesheet" href="libs/xterm/xterm.css" />
-    <script src="libs/xterm/xterm.js"></script>
-    <script src="libs/xterm/xterm-addon-fit.js"></script>
-    <script type="module" crossorigin="anonymous">
-      import RFB from './libs/novnc/core/rfb.js';
-      window.RFB = RFB;
-    </script>
     <script type="module" src="js/app.js" defer></script>
   </head>
   <body data-page="dashboard">
@@ -77,10 +70,8 @@
               <span class="badge badge-warning">Idle</span>
               <span class="status-text">noVNC placeholder reserved for remote display.</span>
             </div>
-            <div class="panel placeholder-panel" style="padding: 0; display: flex; flex-direction: column;">
-              <div id="vnc-container" style="flex: 1; min-height: 500px; background: #000; overflow: hidden; position: relative;">
-                <!-- noVNC canvas will be injected here -->
-              </div>
+            <div class="panel placeholder-panel" style="padding: 0; background: #000; overflow: hidden;">
+              <iframe id="vnc-iframe" style="width: 100%; height: 600px; border: none; display: block;"></iframe>
             </div>
           </section>
 
@@ -94,10 +85,8 @@
               <span class="badge badge-warning">Idle</span>
               <span class="status-text">xterm.js placeholder reserved for interactive shell.</span>
             </div>
-            <div class="panel placeholder-panel" style="padding: 0; background: #000;">
-              <div id="terminal-container" style="width: 100%; height: 500px; padding: 10px;">
-                <!-- xterm.js will be injected here -->
-              </div>
+            <div class="panel placeholder-panel" style="padding: 0; background: #000; overflow: hidden;">
+              <iframe id="term-iframe" style="width: 100%; height: 600px; border: none; display: block;"></iframe>
             </div>
           </section>
 

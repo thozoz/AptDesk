@@ -7,13 +7,16 @@
     root * /opt/aptdesk/www
     file_server
 
-    # Proxy terminal WebSocket to ttyd
-    reverse_proxy /ws/term/* 127.0.0.1:8081
+    # Proxy full ttyd web interface
+    handle_path /term/* {
+        reverse_proxy 127.0.0.1:8081
+    }
 
-    # Proxy VNC WebSocket to websockify
-    reverse_proxy /ws/vnc/* 127.0.0.1:5901
+    # Proxy full noVNC web interface via websockify
+    handle_path /vnc/* {
+        reverse_proxy 127.0.0.1:5901
+    }
 
     # Proxy APIs directly to the Android Host (NanoHTTPd)
-    # This handles Android status, file uploads/downloads (direct to host FS), and software installs
     reverse_proxy /api/* 127.0.0.1:8082
 }

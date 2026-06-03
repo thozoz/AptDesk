@@ -1,8 +1,7 @@
 "use strict";
 
-let terminal = null;
-let fitAddon = null;
-let rfb = null;
+let termLoaded = false;
+let vncLoaded = false;
 
 document.addEventListener("DOMContentLoaded", () => {
   const page = document.body.dataset.page;
@@ -84,93 +83,27 @@ function setActiveTab(tab) {
     panel.classList.toggle("active", panel.getAttribute("data-tab") === tab);
   });
 
-  if (tab === "terminal") {
-    initTerminal();
-  } else if (tab === "desktop") {
-    initDesktop();
+  if (tab === "terminal" && !termLoaded) {
+    const iframe = document.getElementById("term-iframe");
+    if (iframe) {
+        iframe.src = "/term/";
+        termLoaded = true;
+        document.querySelector('#tab-terminal .status-text').textContent = "Embedded ttyd interface";
+        document.querySelector('#tab-terminal .badge').className = "badge badge-success";
+        document.querySelector('#tab-terminal .badge').textContent = "Running";
+    }
+  } else if (tab === "desktop" && !vncLoaded) {
+    const iframe = document.getElementById("vnc-iframe");
+    if (iframe) {
+        // autoconnect=true tells noVNC to connect immediately
+        // path=vnc/ tells noVNC to connect its websocket to /vnc/ instead of the default /websockify
+        iframe.src = "/vnc/vnc.html?autoconnect=true&resize=remote&path=vnc/";
+        vncLoaded = true;
+        document.querySelector('#tab-desktop .status-text').textContent = "Embedded noVNC interface";
+        document.querySelector('#tab-desktop .badge').className = "badge badge-success";
+        document.querySelector('#tab-desktop .badge').textContent = "Running";
+    }
   }
-}
-
-function initTerminal() {
-  if (terminal) return; // Already initialized
-
-  const container = document.getElementById("terminal-container");
-  if (!container) return;
-
-  terminal = new Terminal({
-    cursorBlink: true,
-    fontFamily: '"Fira Code", monospace',
-    theme: {
-      background: '#000000',
-      foreground: '#ffffff'
-    }
-  });
-
-  fitAddon = new FitAddon.FitAddon();
-  terminal.loadAddon(fitAddon);
-  terminal.open(container);
-  fitAddon.fit();
-
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${window.location.host}/ws/term/`;
-  
-  const socket = new WebSocket(wsUrl);
-
-  socket.onopen = () => {
-    document.querySelector('#tab-terminal .status-text').textContent = "Connected to ttyd";
-    document.querySelector('#tab-terminal .badge').className = "badge badge-success";
-    document.querySelector('#tab-terminal .badge').textContent = "Connected";
-  };
-
-  socket.onmessage = (event) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      terminal.write(new Uint8Array(reader.result));
-    };
-    if (event.data instanceof Blob) {
-      reader.readAsArrayBuffer(event.data);
-    } else {
-      terminal.write(event.data);
-    }
-  };
-
-  terminal.onData((data) => {
-    if (socket.readyState === WebSocket.OPEN) {
-      socket.send(data);
-    }
-  });
-
-  window.addEventListener("resize", () => {
-    if (document.getElementById("tab-terminal").classList.contains("active")) {
-      fitAddon.fit();
-    }
-  });
-}
-
-function initDesktop() {
-  if (rfb) return;
-
-  const container = document.getElementById("vnc-container");
-  if (!container) return;
-
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${window.location.host}/ws/vnc/`;
-
-  rfb = new window.RFB(container, wsUrl, {
-    credentials: { password: "" }
-  });
-
-  rfb.addEventListener("connect",  () => {
-    document.querySelector('#tab-desktop .status-text').textContent = "Connected to XFCE";
-    document.querySelector('#tab-desktop .badge').className = "badge badge-success";
-    document.querySelector('#tab-desktop .badge').textContent = "Connected";
-  });
-
-  rfb.addEventListener("disconnect", (e) => {
-    document.querySelector('#tab-desktop .status-text').textContent = "Disconnected: " + e.detail.reason;
-    document.querySelector('#tab-desktop .badge').className = "badge badge-error";
-    document.querySelector('#tab-desktop .badge').textContent = "Disconnected";
-  });
 }
 
 function renderFiles() {

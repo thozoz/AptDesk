@@ -131,6 +131,9 @@ class ProotManager(private val context: Context) {
         export HOME=/root
         export LANG=en_US.UTF-8
 
+        # Fix x0vncserver hostname resolution crash
+        echo "127.0.0.1 localhost $(hostname 2>/dev/null || echo aptdesk)" > /etc/hosts
+
         Xvfb :0 -screen 0 ${resolution}x24 -ac &
         
         # Wait up to 10 seconds for X11 to start (20 * 0.5s)
@@ -140,9 +143,9 @@ class ProotManager(private val context: Context) {
         done
 
         startxfce4 &
-        x0vncserver -display :0 -rfbport 5900 -SecurityTypes None &
-        websockify --web=/opt/aptdesk/www/vnc 5901 127.0.0.1:5900 &
-        ttyd -p 8081 -W /bin/bash &
+        x0vncserver -display :0 -rfbport 5900 -SecurityTypes None >/var/log/x0vncserver.log 2>&1 &
+        websockify --web=/opt/aptdesk/www/libs/novnc 5901 127.0.0.1:5900 &
+        ttyd -p 8081 /bin/bash >/var/log/ttyd.log 2>&1 &
         # Strip Windows CRLF from Caddyfile before parsing
         sed -i 's/\r//' /opt/aptdesk/Caddyfile
         caddy run --config /opt/aptdesk/Caddyfile >/var/log/caddy.log 2>&1 &
