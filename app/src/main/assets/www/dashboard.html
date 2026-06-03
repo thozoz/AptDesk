@@ -91,27 +91,8 @@
           </section>
 
           <section class="tab-panel" id="tab-files" data-tab="files">
-            <div class="toolbar">
-              <button class="primary-button" type="button">New Folder</button>
-              <button class="ghost-button" type="button">Upload</button>
-              <span class="toolbar-meta">/api/files/list</span>
-            </div>
-            <div class="status-strip">
-              <span class="badge badge-info">Local cache</span>
-              <span class="status-text">Mock file listing loaded.</span>
-            </div>
-            <div class="panel">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Type</th>
-                    <th>Size</th>
-                    <th>Modified</th>
-                  </tr>
-                </thead>
-                <tbody id="filesTable"></tbody>
-              </table>
+            <div class="panel placeholder-panel" style="padding: 0; background: #000; overflow: hidden;">
+              <iframe id="files-iframe" style="width: 100%; height: 600px; border: none; display: block;"></iframe>
             </div>
           </section>
 

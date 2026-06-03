@@ -2,6 +2,7 @@
 
 let termLoaded = false;
 let vncLoaded = false;
+let filesLoaded = false;
 
 document.addEventListener("DOMContentLoaded", () => {
   const page = document.body.dataset.page;
@@ -103,29 +104,16 @@ function setActiveTab(tab) {
         document.querySelector('#tab-desktop .badge').className = "badge badge-success";
         document.querySelector('#tab-desktop .badge').textContent = "Running";
     }
+  } else if (tab === "files" && !filesLoaded) {
+    const iframe = document.getElementById("files-iframe");
+    if (iframe) {
+        iframe.src = "/filesapp/";
+        filesLoaded = true;
+    }
   }
 }
 
-function renderFiles() {
-  const tableBody = document.getElementById("filesTable");
-  if (!tableBody) {
-    return;
-  }
-
-  fetchFilesList().then((files) => {
-    tableBody.innerHTML = "";
-    files.forEach((file) => {
-      const row = document.createElement("tr");
-      row.innerHTML = `
-        <td>${file.name}</td>
-        <td>${file.type}</td>
-        <td>${file.size}</td>
-        <td>${file.modified}</td>
-      `;
-      tableBody.appendChild(row);
-    });
-  });
-}
+// Removed old mock renderFiles()
 
 function renderSoftware() {
   const tableBody = document.getElementById("softwareTable");
@@ -241,21 +229,7 @@ function fetchStatus() {
     });
 }
 
-function fetchFilesList() {
-  return fetch('/api/files/')
-    .then(response => response.json())
-    .then(files => {
-        return files.map(file => ({
-            name: file.name,
-            type: file.isDirectory ? "Folder" : "File",
-            size: file.isDirectory ? "-" : (file.size / 1024).toFixed(1) + " KB",
-            modified: "-"
-        }));
-    })
-    .catch(err => {
-        return [];
-    });
-}
+// Removed fetchFilesList()
 
 function fetchSoftwareList() {
   return Promise.resolve([

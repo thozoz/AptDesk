@@ -155,6 +155,11 @@ class ProotManager(private val context: Context) {
         x0vncserver -display :0 -rfbport 5900 -SecurityTypes None >/var/log/x0vncserver.log 2>&1 &
         websockify --web=/opt/aptdesk/www/libs/novnc 5901 127.0.0.1:5900 &
         ttyd -p 8081 /bin/bash >/var/log/ttyd.log 2>&1 &
+        
+        # Start filebrowser
+        chmod +x /opt/aptdesk/www/bin/filebrowser
+        /opt/aptdesk/www/bin/filebrowser -b /filesapp -p 8083 -r / -d /var/lib/filebrowser.db -a 127.0.0.1 --noauth >/var/log/filebrowser.log 2>&1 &
+        
         # Strip Windows CRLF from Caddyfile before parsing
         sed -i 's/\r//' /opt/aptdesk/Caddyfile
         caddy run --config /opt/aptdesk/Caddyfile >/var/log/caddy.log 2>&1 &

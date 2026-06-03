@@ -17,6 +17,9 @@
         reverse_proxy 127.0.0.1:5901
     }
 
+    # Proxy Filebrowser app
+    reverse_proxy /filesapp/* 127.0.0.1:8083
+
     # Proxy APIs directly to the Android Host (NanoHTTPd)
     reverse_proxy /api/* 127.0.0.1:8082
 }
