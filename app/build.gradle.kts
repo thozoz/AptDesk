@@ -21,6 +21,15 @@ android {
         )
     }
 
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
@@ -44,6 +53,12 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+        jniLibs {
+            // Required for PRoot: AGP 8.0+ defaults to compressed .so files inside APK,
+            // which Android cannot execute. useLegacyPackaging=true extracts them to disk
+            // so the OS can set the executable bit (W^X rule, API 29+).
+            useLegacyPackaging = true
+        }
     }
 }
 
@@ -60,4 +75,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("org.apache.commons:commons-compress:1.26.2")
     implementation("org.nanohttpd:nanohttpd:2.3.1")
+    // Provides Theme.Material3.DayNight.NoActionBar used in themes.xml
+    implementation("com.google.android.material:material:1.12.0")
 }
