@@ -97,7 +97,7 @@ function setActiveTab(tab) {
     if (iframe) {
         // autoconnect=true tells noVNC to connect immediately
         // path=vnc/ tells noVNC to connect its websocket to /vnc/ instead of the default /websockify
-        iframe.src = "/vnc/vnc.html?autoconnect=true&resize=remote&path=vnc/";
+        iframe.src = "/vnc/vnc.html?autoconnect=true&resize=scale&path=vnc/";
         vncLoaded = true;
         document.querySelector('#tab-desktop .status-text').textContent = "Embedded noVNC interface";
         document.querySelector('#tab-desktop .badge').className = "badge badge-success";

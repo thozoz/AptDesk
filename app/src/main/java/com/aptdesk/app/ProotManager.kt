@@ -135,6 +135,11 @@ class ProotManager(private val context: Context) {
         export TMPDIR=/tmp
         export XDG_RUNTIME_DIR=/tmp
 
+        # Fix DNS resolution (Ubuntu defaults to systemd-resolved which isn't running)
+        rm -f /etc/resolv.conf
+        echo "nameserver 8.8.8.8" > /etc/resolv.conf
+        echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+
         # Fix x0vncserver hostname resolution crash
         echo "127.0.0.1 localhost $(hostname 2>/dev/null || echo aptdesk)" > /etc/hosts
 
