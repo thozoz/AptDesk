@@ -24,6 +24,7 @@ class MainService : Service() {
     private var runningJob: Job? = null
     private val rootfsManager by lazy { RootfsManager(this) }
     private val prootManager by lazy { ProotManager(this) }
+    private var webServer: WebServer? = null
     private val notificationManager by lazy {
         getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     }
@@ -63,13 +64,19 @@ class MainService : Service() {
 
     private fun runBackend() {
         try {
+            updateNotification("Starting API server...")
+            webServer = WebServer(this, prootManager)
+            webServer?.start()
+
             updateNotification("Preparing rootfs...")
             rootfsManager.ensureRootfs()
             updateNotification("Launching proot...")
             prootManager.start()
-            updateNotification("AptDesk running")
+            
+            val ip = NetworkInfo.getLocalIpAddress()
+            updateNotification("http://$ip:8080")
         } catch (error: IOException) {
-            Log.e(TAG, "Rootfs/proot failed", error)
+            Log.e(TAG, "Backend failed", error)
             updateNotification("Failed: ${error.message}")
             stopSelf()
         } catch (error: IllegalStateException) {
@@ -83,6 +90,8 @@ class MainService : Service() {
         runningJob?.cancel()
         runningJob = null
         prootManager.stop()
+        webServer?.stop()
+        webServer = null
     }
 
     private fun updateNotification(content: String) {
