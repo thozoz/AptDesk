@@ -1,3 +1,7 @@
+{
+    admin off
+}
+
 :8080 {
     # Serve static dashboard files (extracted from Android APK assets)
     root * /opt/aptdesk/www

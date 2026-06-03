@@ -143,7 +143,9 @@ class ProotManager(private val context: Context) {
         x0vncserver -display :0 -rfbport 5900 -SecurityTypes None &
         websockify --web=/opt/aptdesk/www/vnc 5901 127.0.0.1:5900 &
         ttyd -p 8081 -W /bin/bash &
-        caddy run --config /opt/aptdesk/Caddyfile &
+        # Strip Windows CRLF from Caddyfile before parsing
+        sed -i 's/\r//' /opt/aptdesk/Caddyfile
+        caddy run --config /opt/aptdesk/Caddyfile >/var/log/caddy.log 2>&1 &
 
         wait
     """.trimIndent()
