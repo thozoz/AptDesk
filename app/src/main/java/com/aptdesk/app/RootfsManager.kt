@@ -23,6 +23,7 @@ class RootfsManager(private val context: Context) {
         if (readyMarker.exists()) {
             return
         }
+        AptDeskState.state.value = AptDeskState.State.DownloadingRootfs
         val rootfsUrl = BuildConfig.ROOTFS_URL
         require(rootfsUrl.isNotBlank()) { "ROOTFS_URL is not configured" }
 
@@ -35,6 +36,7 @@ class RootfsManager(private val context: Context) {
 
         val archiveFile = File(context.cacheDir, "aptdesk-rootfs.tar.gz")
         downloadRootfs(rootfsUrl, archiveFile)
+        AptDeskState.state.value = AptDeskState.State.ExtractingRootfs
         extractArchive(archiveFile, rootfsDir)
         readyMarker.writeText("ready")
     }
@@ -50,9 +52,20 @@ class RootfsManager(private val context: Context) {
             throw IOException("Rootfs download failed: HTTP ${connection.responseCode}")
         }
 
+        val totalLen = connection.contentLength
+
         connection.inputStream.use { input ->
             FileOutputStream(destination).use { output ->
-                input.copyTo(output)
+                val buffer = ByteArray(8192)
+                var bytesRead: Int
+                var totalRead = 0L
+                while (input.read(buffer).also { bytesRead = it } != -1) {
+                    output.write(buffer, 0, bytesRead)
+                    totalRead += bytesRead
+                    if (totalLen > 0) {
+                        AptDeskState.progress.value = ((totalRead * 100) / totalLen).toInt()
+                    }
+                }
             }
         }
     }
@@ -166,6 +179,39 @@ class RootfsManager(private val context: Context) {
         }
         if (!target.delete()) {
             throw IOException("Failed to delete ${target.path}")
+        }
+    }
+
+    @Throws(IOException::class)
+    fun extractAssets() {
+        AptDeskState.state.value = AptDeskState.State.ExtractingAssets
+        val targetBase = File(rootfsDir, "opt/aptdesk")
+        targetBase.mkdirs()
+        
+        context.assets.open("Caddyfile").use { input ->
+            FileOutputStream(File(targetBase, "Caddyfile")).use { output ->
+                input.copyTo(output)
+            }
+        }
+        
+        val wwwTarget = File(targetBase, "www")
+        copyAssetDir("www", wwwTarget)
+    }
+
+    private fun copyAssetDir(assetPath: String, targetDir: File) {
+        val assets = context.assets.list(assetPath) ?: return
+        if (assets.isEmpty()) {
+            targetDir.parentFile?.mkdirs()
+            context.assets.open(assetPath).use { input ->
+                FileOutputStream(targetDir).use { output ->
+                    input.copyTo(output)
+                }
+            }
+        } else {
+            targetDir.mkdirs()
+            for (child in assets) {
+                copyAssetDir("$assetPath/$child", File(targetDir, child))
+            }
         }
     }
 

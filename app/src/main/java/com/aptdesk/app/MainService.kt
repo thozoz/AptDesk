@@ -64,24 +64,29 @@ class MainService : Service() {
 
     private fun runBackend() {
         try {
+            AptDeskState.state.value = AptDeskState.State.StartingBackend
             updateNotification("Starting API server...")
             webServer = WebServer(this, prootManager)
             webServer?.start()
 
             updateNotification("Preparing rootfs...")
             rootfsManager.ensureRootfs()
+            
+            updateNotification("Extracting web assets...")
+            rootfsManager.extractAssets()
+
+            AptDeskState.state.value = AptDeskState.State.StartingBackend
             updateNotification("Launching proot...")
             prootManager.start()
             
             val ip = NetworkInfo.getLocalIpAddress()
-            updateNotification("http://$ip:8080")
-        } catch (error: IOException) {
+            val url = "http://$ip:8080"
+            updateNotification(url)
+            AptDeskState.state.value = AptDeskState.State.Running(ip)
+        } catch (error: Exception) {
             Log.e(TAG, "Backend failed", error)
             updateNotification("Failed: ${error.message}")
-            stopSelf()
-        } catch (error: IllegalStateException) {
-            Log.e(TAG, "Configuration error", error)
-            updateNotification("Failed: ${error.message}")
+            AptDeskState.state.value = AptDeskState.State.Error(error.message ?: "Unknown error")
             stopSelf()
         }
     }
@@ -92,6 +97,7 @@ class MainService : Service() {
         prootManager.stop()
         webServer?.stop()
         webServer = null
+        AptDeskState.state.value = AptDeskState.State.Idle
     }
 
     private fun updateNotification(content: String) {
