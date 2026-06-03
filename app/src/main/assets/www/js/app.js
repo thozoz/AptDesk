@@ -76,6 +76,24 @@ function initDashboard() {
     });
   }
 
+  const softwareUpdateBtn = document.getElementById("softwareUpdateBtn");
+  if (softwareUpdateBtn) {
+    softwareUpdateBtn.addEventListener("click", () => {
+      softwareUpdateBtn.textContent = "Updating...";
+      softwareUpdateBtn.disabled = true;
+      fetch("/api/software/update").then(r => r.json()).then(data => {
+        softwareUpdateBtn.textContent = "Update";
+        softwareUpdateBtn.disabled = false;
+        alert(data.success ? "Update completed" : "Update failed:\n" + (data.log || ""));
+        if (data.success) renderSoftware(document.getElementById("softwareSearchInput")?.value || null);
+      }).catch(() => {
+        softwareUpdateBtn.textContent = "Update";
+        softwareUpdateBtn.disabled = false;
+        alert("Connection error");
+      });
+    });
+  }
+
   setInterval(() => {
     updateStatus();
     renderSessions();
@@ -196,7 +214,6 @@ function renderSessions() {
       row.innerHTML = `
         <td>${session.name}</td>
         <td>${session.user}</td>
-        <td>${session.uptime}</td>
         <td><span class="badge badge-${session.badge}">${session.status}</span></td>
       `;
       tableBody.appendChild(row);
@@ -267,6 +284,7 @@ function handleInstall(button) {
         if (data.success) {
           button.textContent = "Install";
           button.disabled = false;
+          button.className = "ghost-button install-button";
           button.setAttribute("data-action", "install");
           const row = button.closest("tr");
           if (row) row.querySelector(".status-cell").textContent = "Available";
@@ -291,6 +309,7 @@ function handleInstall(button) {
         if (data.success) {
           button.textContent = "Remove";
           button.disabled = false;
+          button.className = "danger-button install-button";
           button.setAttribute("data-action", "remove");
           const row = button.closest("tr");
           if (row) row.querySelector(".status-cell").textContent = "Installed";

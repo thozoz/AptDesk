@@ -33,6 +33,7 @@ class WebServer(
             uri == "/api/software/list" -> handleSoftwareList()
             uri == "/api/software/search" -> handleSoftwareSearch(session)
             uri == "/api/software/action" -> handleSoftwareAction(session)
+            uri == "/api/software/update" -> handleSoftwareUpdate()
             uri.startsWith("/api/files/") || uri == "/api/files" -> handleFiles(uri)
             else -> newFixedLengthResponse(
                 Response.Status.NOT_FOUND,
@@ -95,71 +96,18 @@ class WebServer(
 
     private fun handleSessions(): Response {
         try {
-            val process = Runtime.getRuntime().exec(arrayOf("ps", "-A", "-o", "etime,comm"))
-            val output = process.inputStream.bufferedReader().readText()
-            
             val sessionsArray = org.json.JSONArray()
-            
-            var ttydUptime = "-"
-            var ttydStatus = "Inactive"
-            var ttydBadge = "neutral"
-            
-            var vncUptime = "-"
-            var vncStatus = "Inactive"
-            var vncBadge = "neutral"
-            
-            var filesUptime = "-"
-            var filesStatus = "Inactive"
-            var filesBadge = "neutral"
 
-            output.lines().forEach { line ->
-                val trimmed = line.trim()
-                if (trimmed.isNotEmpty()) {
-                    val parts = trimmed.split(Regex("\\s+"), 2)
-                    if (parts.size == 2) {
-                        val etime = parts[0]
-                        val comm = parts[1]
-                        
-                        if (comm.contains("ttyd")) {
-                            ttydUptime = etime
-                            ttydStatus = "Active"
-                            ttydBadge = "success"
-                        } else if (comm.contains("Xvnc") || comm.contains("Xtiger")) {
-                            vncUptime = etime
-                            vncStatus = "Active"
-                            vncBadge = "success"
-                        } else if (comm.contains("filebrowser")) {
-                            filesUptime = etime
-                            filesStatus = "Active"
-                            filesBadge = "success"
-                        }
-                    }
-                }
+            if (!prootManager.isRunning()) {
+                sessionsArray.put(sessionObj("desktop-01", "vncserver", "Inactive", "neutral"))
+                sessionsArray.put(sessionObj("terminal-02", "ttyd", "Inactive", "neutral"))
+                sessionsArray.put(sessionObj("files-sync", "filebrowser", "Inactive", "neutral"))
+                return newFixedLengthResponse(Response.Status.OK, "application/json", sessionsArray.toString())
             }
 
-            sessionsArray.put(JSONObject().apply {
-                put("name", "desktop-01")
-                put("user", "vncserver")
-                put("uptime", vncUptime)
-                put("status", vncStatus)
-                put("badge", vncBadge)
-            })
-            
-            sessionsArray.put(JSONObject().apply {
-                put("name", "terminal-02")
-                put("user", "ttyd")
-                put("uptime", ttydUptime)
-                put("status", ttydStatus)
-                put("badge", ttydBadge)
-            })
-            
-            sessionsArray.put(JSONObject().apply {
-                put("name", "files-sync")
-                put("user", "filebrowser")
-                put("uptime", filesUptime)
-                put("status", filesStatus)
-                put("badge", filesBadge)
-            })
+            sessionsArray.put(buildSession("desktop-01", "vncserver", listOf("x0vncserver")))
+            sessionsArray.put(buildSession("terminal-02", "ttyd", listOf("ttyd")))
+            sessionsArray.put(buildSession("files-sync", "filebrowser", listOf("filebrowser")))
 
             return newFixedLengthResponse(Response.Status.OK, "application/json", sessionsArray.toString())
         } catch (e: Exception) {
@@ -167,6 +115,25 @@ class WebServer(
             val fallback = org.json.JSONArray()
             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", fallback.toString())
         }
+    }
+
+    private fun sessionObj(name: String, user: String, status: String, badge: String): JSONObject {
+        return JSONObject().apply {
+            put("name", name)
+            put("user", user)
+            put("status", status)
+            put("badge", badge)
+        }
+    }
+
+    private fun buildSession(name: String, user: String, processNames: List<String>): JSONObject {
+        for (proc in processNames) {
+            val pid = prootManager.executeCommand("pidof $proc").trim()
+            if (pid.isNotEmpty()) {
+                return sessionObj(name, user, "Active", "success")
+            }
+        }
+        return sessionObj(name, user, "Inactive", "neutral")
     }
 
     private fun handleSoftwareList(): Response {
@@ -299,6 +266,20 @@ class WebServer(
                 "application/json",
                 """{"error":"${e.message}"}"""
             )
+        }
+    }
+
+    private fun handleSoftwareUpdate(): Response {
+        try {
+            val output = prootManager.executeCommand("DEBIAN_FRONTEND=noninteractive /usr/bin/apt-get update 2>&1")
+            val success = !output.contains("E: ") && !output.contains("Could not")
+            return newFixedLengthResponse(Response.Status.OK, "application/json", JSONObject().apply {
+                put("success", success)
+                put("log", output.takeLast(2000))
+            }.toString())
+        } catch (e: Exception) {
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json",
+                """{"success":false,"log":"${e.message}"}""")
         }
     }
 

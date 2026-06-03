@@ -334,6 +334,21 @@ code {
   color: #c5cad6;
 }
 
+.update-button {
+  border: 1px solid #7a6000;
+  background: #2e2400;
+  color: #d4a800;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.update-button:hover:not(:disabled) {
+  background: #3d3000;
+  border-color: #a07800;
+}
+
 .login-shell .topbar {
   justify-content: space-between;
 }
@@ -404,8 +419,18 @@ code {
     width: auto;
   }
 
+  .panel-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
   .tabs {
     flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 600px) {
+  .panel-grid {
+    grid-template-columns: 1fr;
   }
 }
 
