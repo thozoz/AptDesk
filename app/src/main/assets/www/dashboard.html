@@ -98,13 +98,9 @@
 
           <section class="tab-panel" id="tab-software" data-tab="software">
             <div class="toolbar">
-              <button class="primary-button" type="button">Check Updates</button>
-              <button class="ghost-button" type="button">Add Package</button>
-              <span class="toolbar-meta">/api/software/install</span>
-            </div>
-            <div class="status-strip">
-              <span class="badge badge-info">Repository OK</span>
-              <span class="status-text">Mock package list ready.</span>
+              <input type="text" id="softwareSearchInput" placeholder="Search packages..." class="search-input" style="flex: 1; padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); color: white;" />
+              <button class="primary-button" type="button" id="softwareSearchBtn">Search</button>
+              <button class="ghost-button" type="button" id="softwareListBtn">Installed</button>
             </div>
             <div class="panel">
               <table class="data-table">
@@ -167,3 +163,4 @@
     </div>
   </body>
 </html>
+

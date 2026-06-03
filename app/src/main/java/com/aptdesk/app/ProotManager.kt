@@ -169,6 +169,46 @@ class ProotManager(private val context: Context) {
         wait
     """.trimIndent()
 
+    fun executeCommand(cmd: String): String {
+        if (!rootfsDir.exists()) return "Error: Rootfs missing"
+        ensureBinary(prootBinary, "libproot.so")
+        ensureBinary(prootLoader, "libproot-loader.so")
+        ensureTallocLib()
+
+        val command = listOf(
+            prootBinary.absolutePath,
+            "-0",
+            "--link2symlink",
+            "-b", "/dev:/dev",
+            "-b", "/proc:/proc",
+            "-b", "/sys:/sys",
+            "--rootfs=${rootfsDir.absolutePath}",
+            "/bin/bash", "-c", cmd
+        )
+        try {
+            val proc = ProcessBuilder(command).apply {
+                environment()["PROOT_TMP_DIR"] = context.cacheDir.path
+                environment()["PROOT_LOADER"] = prootLoader.absolutePath
+                val existingPath = environment()["LD_LIBRARY_PATH"] ?: ""
+                environment()["LD_LIBRARY_PATH"] = if (existingPath.isEmpty()) {
+                    libsDir.absolutePath
+                } else {
+                    "${libsDir.absolutePath}:$existingPath"
+                }
+                redirectErrorStream(true)
+            }.start()
+            
+            proc.waitFor(120, java.util.concurrent.TimeUnit.SECONDS)
+            if (proc.isAlive) {
+                proc.destroyForcibly()
+                return "Error: Command timed out after 120 seconds."
+            }
+            return proc.inputStream.bufferedReader().readText()
+        } catch(e: Exception) {
+            return "Error executing command: ${e.message}"
+        }
+    }
+
     companion object {
         private const val TAG = "ProotManager"
     }

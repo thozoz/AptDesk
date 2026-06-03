@@ -408,3 +408,5 @@ code {
     flex-wrap: wrap;
   }
 }
+
+.danger-button { background: rgba(244,67,54,0.05); border: 1px solid rgba(244,67,54,0.2); color: #bd5c5c; border-radius: 4px; padding: 8px 12px; font-size: 13px; cursor: pointer; transition: all 0.2s; } .danger-button:hover:not(:disabled) { background: rgba(244,67,54,0.1); border-color: rgba(244,67,54,0.3); color: #cf6b6b; }

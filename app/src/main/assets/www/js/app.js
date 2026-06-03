@@ -56,7 +56,30 @@ function initDashboard() {
     statsRefreshButton.addEventListener("click", updateStatus);
   }
 
-  setInterval(updateStatus, 5000);
+  const softwareSearchBtn = document.getElementById("softwareSearchBtn");
+  const softwareListBtn = document.getElementById("softwareListBtn");
+  const softwareSearchInput = document.getElementById("softwareSearchInput");
+
+  if (softwareSearchBtn && softwareSearchInput) {
+    softwareSearchBtn.addEventListener("click", () => {
+      renderSoftware(softwareSearchInput.value);
+    });
+    softwareSearchInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") renderSoftware(softwareSearchInput.value);
+    });
+  }
+
+  if (softwareListBtn) {
+    softwareListBtn.addEventListener("click", () => {
+      if (softwareSearchInput) softwareSearchInput.value = "";
+      renderSoftware(null);
+    });
+  }
+
+  setInterval(() => {
+    updateStatus();
+    renderSessions();
+  }, 5000);
 }
 
 function setupTabs() {
@@ -114,31 +137,50 @@ function setActiveTab(tab) {
 
 // Removed old mock renderFiles()
 
-function renderSoftware() {
+function renderSoftware(searchQuery = null) {
   const tableBody = document.getElementById("softwareTable");
   if (!tableBody) {
     return;
   }
+  
+  tableBody.innerHTML = `<tr><td colspan="4" style="text-align:center;">Loading...</td></tr>`;
 
-  fetchSoftwareList().then((packages) => {
-    tableBody.innerHTML = "";
-    packages.forEach((pkg) => {
-      const row = document.createElement("tr");
-      row.innerHTML = `
-        <td>${pkg.name}</td>
-        <td>${pkg.version}</td>
-        <td class="status-cell">${pkg.status}</td>
-        <td><button class="ghost-button install-button" data-package="${pkg.name}">Install</button></td>
-      `;
-      tableBody.appendChild(row);
-    });
+  let fetchPromise;
+  if (searchQuery) {
+    fetchPromise = fetch(`/api/software/search?q=${encodeURIComponent(searchQuery)}`);
+  } else {
+    fetchPromise = fetch('/api/software/list');
+  }
 
-    tableBody.querySelectorAll(".install-button").forEach((button) => {
-      button.addEventListener("click", () => {
-        handleInstall(button);
+  fetchPromise
+    .then(res => res.json())
+    .then((packages) => {
+      tableBody.innerHTML = "";
+      if (packages.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="4" style="text-align:center;">No packages found.</td></tr>`;
+        return;
+      }
+      
+      packages.forEach((pkg) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${pkg.name}</td>
+          <td>${pkg.version}</td>
+          <td class="status-cell">${pkg.status}</td>
+          <td><button class="${pkg.status === 'Installed' ? 'danger-button' : 'ghost-button'} install-button" data-package="${pkg.name}" data-action="${pkg.status === 'Installed' ? 'remove' : 'install'}">${pkg.status === 'Installed' ? 'Remove' : 'Install'}</button></td>
+        `;
+        tableBody.appendChild(row);
       });
+
+      tableBody.querySelectorAll(".install-button").forEach((button) => {
+        button.addEventListener("click", () => {
+          handleInstall(button);
+        });
+      });
+    })
+    .catch(err => {
+      tableBody.innerHTML = `<tr><td colspan="4" style="text-align:center; color: #f44336;">Error loading packages</td></tr>`;
     });
-  });
 }
 
 function renderSessions() {
@@ -194,26 +236,58 @@ function setStatText(stat, value) {
 }
 
 function handleInstall(button) {
-  const pkgName = button.getAttribute("data-package");
-  if (!pkgName) {
-    return;
+  const pkg = button.getAttribute("data-package");
+  const action = button.getAttribute("data-action");
+  
+  if (action === "remove") {
+    button.textContent = "Removing...";
+    button.disabled = true;
+    
+    fetch(`/api/software/action?pkg=${encodeURIComponent(pkg)}&action=remove`, { method: 'POST' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          button.textContent = "Install";
+          button.disabled = false;
+          button.setAttribute("data-action", "install");
+          const row = button.closest("tr");
+          if (row) row.querySelector(".status-cell").textContent = "Available";
+        } else {
+          alert("Error removing: " + (data.error || "Unknown error"));
+          button.textContent = "Remove";
+          button.disabled = false;
+        }
+      })
+      .catch(err => {
+        alert("Error: " + err);
+        button.textContent = "Remove";
+        button.disabled = false;
+      });
+  } else {
+    button.textContent = "Installing...";
+    button.disabled = true;
+    
+    fetch(`/api/software/action?pkg=${encodeURIComponent(pkg)}&action=install`, { method: 'POST' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          button.textContent = "Remove";
+          button.disabled = false;
+          button.setAttribute("data-action", "remove");
+          const row = button.closest("tr");
+          if (row) row.querySelector(".status-cell").textContent = "Installed";
+        } else {
+          alert("Error installing: " + (data.error || "Unknown error"));
+          button.textContent = "Install";
+          button.disabled = false;
+        }
+      })
+      .catch(err => {
+        alert("Error: " + err);
+        button.textContent = "Install";
+        button.disabled = false;
+      });
   }
-
-  const row = button.closest("tr");
-  const statusCell = row ? row.querySelector(".status-cell") : null;
-
-  button.textContent = "Installing...";
-  button.disabled = true;
-  if (statusCell) {
-    statusCell.textContent = "Installing";
-  }
-
-  installSoftwarePackage(pkgName).then(() => {
-    if (statusCell) {
-      statusCell.textContent = "Installed";
-    }
-    button.textContent = "Installed";
-  });
 }
 
 function fetchStatus() {
@@ -241,21 +315,21 @@ function fetchStatus() {
 
 // Removed fetchFilesList()
 
-function fetchSoftwareList() {
-  return Promise.resolve([
-    { name: "Firefox", version: "126.0", status: "Available" },
-    { name: "LibreOffice", version: "7.6", status: "Available" },
-    { name: "Docker", version: "26.1", status: "Installed" },
-    { name: "VS Code", version: "1.90", status: "Available" },
-  ]);
-}
+// Removed fetchSoftwareList() in favor of direct fetch in renderSoftware()
 
 function fetchSessions() {
-  return Promise.resolve([
-    { name: "desktop-01", user: "operator", uptime: "1h 12m", status: "Active", badge: "success" },
-    { name: "terminal-02", user: "automation", uptime: "34m", status: "Idle", badge: "warning" },
-    { name: "files-sync", user: "system", uptime: "2h 03m", status: "Active", badge: "success" },
-  ]);
+  return fetch('/api/sessions')
+    .then(response => {
+        if (!response.ok) throw new Error('API error');
+        return response.json();
+    })
+    .catch(err => {
+        return [
+          { name: "desktop-01", user: "vncserver", uptime: "-", status: "Error", badge: "danger" },
+          { name: "terminal-02", user: "ttyd", uptime: "-", status: "Error", badge: "danger" },
+          { name: "files-sync", user: "filebrowser", uptime: "-", status: "Error", badge: "danger" }
+        ];
+    });
 }
 
 function installSoftwarePackage() {
