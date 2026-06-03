@@ -158,6 +158,8 @@ class ProotManager(private val context: Context) {
         
         # Start filebrowser
         chmod +x /opt/aptdesk/www/bin/filebrowser
+        /opt/aptdesk/www/bin/filebrowser config init -d /var/lib/filebrowser.db >/dev/null 2>&1 || true
+        /opt/aptdesk/www/bin/filebrowser users update admin --perm.share=false -d /var/lib/filebrowser.db >/dev/null 2>&1 || true
         /opt/aptdesk/www/bin/filebrowser -b /filesapp -p 8083 -r / -d /var/lib/filebrowser.db -a 127.0.0.1 --noauth >/var/log/filebrowser.log 2>&1 &
         
         # Strip Windows CRLF from Caddyfile before parsing
