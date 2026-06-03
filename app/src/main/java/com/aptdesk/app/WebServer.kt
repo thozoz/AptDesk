@@ -231,8 +231,7 @@ class WebServer(
                 return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"Invalid action\"}")
             }
             
-            val output = prootManager.executeCommand("DEBIAN_FRONTEND=noninteractive $cmd")
-            val isSuccess = output.contains("Setting up $pkg") || output.contains("Removing $pkg") || output.contains("is already the newest version") || output.contains("newly installed")
+            val output = prootManager.executeCommand("DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC $cmd")
             
             // To be totally safe, if it didn't crash and has no E: lines, it might be fine.
             return newFixedLengthResponse(Response.Status.OK, "application/json", JSONObject().apply {
