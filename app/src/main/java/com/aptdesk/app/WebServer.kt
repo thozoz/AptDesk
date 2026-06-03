@@ -1,6 +1,8 @@
 package com.aptdesk.app
 
 import android.content.Context
+import android.os.SystemClock
+import android.util.Log
 import fi.iki.elonen.NanoHTTPD
 import org.json.JSONArray
 import org.json.JSONObject
@@ -15,6 +17,11 @@ class WebServer(
 ) : NanoHTTPD("127.0.0.1", port) {
 
     private val rootfsDir = File(context.filesDir, "rootfs")
+
+    @Volatile private var cpuPercent = -1
+    @Volatile private var prevCpuTime = 0L
+    @Volatile private var prevWallTime = 0L
+    private var cpuPollThread: Thread? = null
 
     override fun serve(session: IHTTPSession): Response {
         val uri = session.uri
@@ -62,9 +69,9 @@ class WebServer(
                 }
                 put("disk", disk)
                 
-                // Fluctuating mock for CPU since Android 8+ blocks /proc/stat. Gives a "live" feel.
-                val fakeCpu = 12 + (Math.random() * 8).toInt()
-                put("cpu", fakeCpu)
+                val cpuVal = readCpuUsage()
+                put("cpu", if (cpuVal >= 0) cpuVal else JSONObject.NULL)
+                put("battery", getBatteryInfo())
             }
             return newFixedLengthResponse(
                 Response.Status.OK,
@@ -289,6 +296,90 @@ class WebServer(
             )
         }
     }
+
+    override fun start() {
+        super.start()
+        startCpuPolling()
+    }
+
+    override fun stop() {
+        cpuPollThread?.interrupt()
+        cpuPollThread = null
+        super.stop()
+    }
+
+    private fun startCpuPolling() {
+        cpuPollThread = Thread {
+            try { pollCpu() } catch (_: Exception) {}
+            try { Thread.sleep(800) } catch (_: InterruptedException) { return@Thread }
+            try { pollCpu() } catch (_: Exception) {}
+
+            while (!Thread.currentThread().isInterrupted) {
+                try { Thread.sleep(1000) } catch (_: InterruptedException) { break }
+                try { pollCpu() } catch (_: Exception) {}
+            }
+        }.apply { isDaemon = true; name = "cpu-poll"; start() }
+    }
+
+    private fun pollCpu() {
+        val result = tryAppCpuUsage()
+        Log.d("AptDeskWebServer", "pollCpu result=$result, cpuPercent=$cpuPercent")
+        if (result != null) cpuPercent = result
+    }
+
+    private fun tryAppCpuUsage(): Int? {
+        return try {
+            val stat = File("/proc/self/stat").readText().trim()
+            val parts = stat.split(" ")
+            val utime = parts.getOrNull(13)?.toLongOrNull() ?: return null
+            val stime = parts.getOrNull(14)?.toLongOrNull() ?: return null
+            val cpuTime = utime + stime
+
+            val wallTime = SystemClock.elapsedRealtime()
+
+            val prevCpu = prevCpuTime
+            val prevWall = prevWallTime
+
+            prevCpuTime = cpuTime
+            prevWallTime = wallTime
+
+            if (prevWall > 0 && wallTime > prevWall) {
+                val deltaCpu = cpuTime - prevCpu
+                val deltaWall = wallTime - prevWall
+                val pct = ((deltaCpu * 10L * 100L) / deltaWall).toInt()
+                Log.d("AptDeskWebServer", "appCPU: $pct% (deltaCpu=$deltaCpu deltaWall=$deltaWall)")
+                return pct.coerceIn(0, 100)
+            }
+            null
+        } catch (e: Exception) {
+            Log.d("AptDeskWebServer", "tryAppCpuUsage failed: ${e.message}")
+            null
+        }
+    }
+
+    private fun getBatteryInfo(): JSONObject {
+        val intent = context.registerReceiver(
+            null,
+            android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED)
+        )
+        val level = intent?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scale = intent?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100) ?: 100
+        val tempRaw = intent?.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, 0) ?: 0
+        val status = intent?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
+
+        val percent = if (scale > 0) (level * 100 / scale) else level
+        val temp = tempRaw / 10.0
+        val charging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
+                       status == android.os.BatteryManager.BATTERY_STATUS_FULL
+
+        return JSONObject().apply {
+            put("percent", percent)
+            put("temp", String.format("%.1f", temp))
+            put("charging", charging)
+        }
+    }
+
+    private fun readCpuUsage(): Int = cpuPercent
 
     private fun handleFiles(uri: String): Response {
         val path = uri.removePrefix("/api/files").removePrefix("/")

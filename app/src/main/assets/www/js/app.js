@@ -214,12 +214,27 @@ function updateStatus() {
       setStatText("ram-detail", `API Err`);
       setStatText("disk-detail", `Err`);
     } else {
-      setStatText("cpu", `CPU ${status.cpu}%`);
+      const cpuText = status.cpu !== null ? `${status.cpu}%` : 'N/A';
+      setStatText("cpu", `CPU ${cpuText}`);
       setStatText("ram", `RAM ${status.ram.used} / ${status.ram.total} GB`);
       setStatText("disk", `Disk ${status.disk.used} / ${status.disk.total} GB`);
-      setStatText("cpu-detail", `${status.cpu}%`);
+      setStatText("cpu-detail", cpuText);
       setStatText("ram-detail", `${status.ram.used} / ${status.ram.total} GB`);
       setStatText("disk-detail", `${status.disk.used} / ${status.disk.total} GB`);
+
+      const bat = status.battery;
+      if (bat) {
+        const charge = bat.charging ? '⚡' : '';
+        setStatText("battery", `Bat ${bat.percent}%${charge}`);
+        setStatText("bat-detail", `${bat.percent}% ${charge}`);
+        setStatText("temp-detail", `${bat.temp} °C`);
+        setStatText("temp", `${bat.temp}°C`);
+      } else {
+        setStatText("battery", `Bat N/A`);
+        setStatText("bat-detail", `N/A`);
+        setStatText("temp-detail", `-- °C`);
+        setStatText("temp", `--°C`);
+      }
     }
 
     const stamp = document.getElementById("statusTimestamp");
@@ -297,18 +312,18 @@ function fetchStatus() {
         return response.json();
     })
     .then(data => {
-        // Return structured data for the UI using real values from the API
         return {
             status: data.status,
             error: data.error,
-            cpu: data.cpu || 0,
+            cpu: (data.cpu !== null && data.cpu !== undefined) ? data.cpu : null,
             ram: data.ram && typeof data.ram === 'object' ? data.ram : { used: "0", total: "0" },
-            disk: data.disk && typeof data.disk === 'object' ? data.disk : { used: "0", total: "0" }
+            disk: data.disk && typeof data.disk === 'object' ? data.disk : { used: "0", total: "0" },
+            battery: data.battery && typeof data.battery === 'object' ? data.battery : null
         };
     })
     .catch(err => {
         return {
-            status: "error", error: "Connection failed", cpu: 0, ram: { used: "0", total: "0" }, disk: { used: "0", total: "0" }
+            status: "error", error: "Connection failed", cpu: 0, ram: { used: "0", total: "0" }, disk: { used: "0", total: "0" }, battery: null
         };
     });
 }

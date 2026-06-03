@@ -19,6 +19,8 @@
           <span class="badge badge-neutral" data-stat="cpu">CPU 0%</span>
           <span class="badge badge-neutral" data-stat="ram">RAM 0 GB</span>
           <span class="badge badge-neutral" data-stat="disk">Disk 0 GB</span>
+          <span class="badge badge-neutral" data-stat="battery">Bat --%</span>
+          <span class="badge badge-neutral" data-stat="temp">-- °C</span>
         </div>
         <div class="topbar-actions">
           <button class="ghost-button" id="refreshBtn" type="button">Refresh</button>
@@ -63,7 +65,6 @@
           <section class="tab-panel active" id="tab-desktop" data-tab="desktop">
             <div class="toolbar">
               <button class="primary-button" type="button" disabled>Connect Desktop</button>
-              <span class="toolbar-meta">Awaiting /ws/vnc/* stream</span>
             </div>
             <div class="status-strip">
               <span class="badge badge-warning">Idle</span>
@@ -77,7 +78,6 @@
           <section class="tab-panel" id="tab-terminal" data-tab="terminal">
             <div class="toolbar">
               <button class="primary-button" type="button" disabled>Open Terminal</button>
-              <span class="toolbar-meta">Awaiting /ws/term/* stream</span>
             </div>
             <div class="status-strip">
               <span class="badge badge-warning">Idle</span>
@@ -126,19 +126,24 @@
             </div>
             <div class="panel-grid">
               <div class="panel stat-card">
-                <h4>CPU Load</h4>
+                <h4>Web Server Load</h4>
                 <div class="stat-value" data-stat="cpu-detail">0%</div>
-                <div class="stat-subtext">4 cores</div>
               </div>
               <div class="panel stat-card">
                 <h4>Memory</h4>
                 <div class="stat-value" data-stat="ram-detail">0 GB</div>
-                <div class="stat-subtext">Swap ready</div>
               </div>
               <div class="panel stat-card">
                 <h4>Disk</h4>
                 <div class="stat-value" data-stat="disk-detail">0 GB</div>
-                <div class="stat-subtext">NVMe /data</div>
+              </div>
+              <div class="panel stat-card">
+                <h4>Battery</h4>
+                <div class="stat-value" data-stat="bat-detail">--%</div>
+              </div>
+              <div class="panel stat-card">
+                <h4>Temperature</h4>
+                <div class="stat-value" data-stat="temp-detail">-- °C</div>
               </div>
             </div>
             <div class="panel">
