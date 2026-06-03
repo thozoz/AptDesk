@@ -82,8 +82,11 @@ class ProotManager(private val context: Context) {
         if (!file.exists()) {
             throw IllegalStateException("Missing $name in native libs: ${file.path}")
         }
-        if (!file.canExecute() && !file.setExecutable(true, false)) {
-            throw IllegalStateException("Unable to mark $name executable: ${file.path}")
+        // nativeLibraryDir is mounted read-only by the Android system; setExecutable()
+        // would throw here. With android:extractNativeLibs="true" the OS already sets
+        // the executable bit during APK installation, so no manual chmod is needed.
+        if (!file.canExecute()) {
+            throw IllegalStateException("$name is not executable (unexpected on API 29+): ${file.path}")
         }
     }
 
