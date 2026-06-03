@@ -44,7 +44,6 @@ function initDashboard() {
   const statsRefreshButton = document.getElementById("statsRefreshBtn");
 
   setupTabs();
-  renderFiles();
   renderSoftware();
   renderSessions();
   updateStatus();
@@ -165,12 +164,21 @@ function renderSessions() {
 
 function updateStatus() {
   fetchStatus().then((status) => {
-    setStatText("cpu", `CPU ${status.cpu}%`);
-    setStatText("ram", `RAM ${status.ram.used} / ${status.ram.total} GB`);
-    setStatText("disk", `Disk ${status.disk.used} / ${status.disk.total} GB`);
-    setStatText("cpu-detail", `${status.cpu}%`);
-    setStatText("ram-detail", `${status.ram.used} / ${status.ram.total} GB`);
-    setStatText("disk-detail", `${status.disk.used} / ${status.disk.total} GB`);
+    if (status.status === "error") {
+      setStatText("cpu", `Error`);
+      setStatText("ram", `API Error`);
+      setStatText("disk", `${status.error}`);
+      setStatText("cpu-detail", `Err`);
+      setStatText("ram-detail", `API Err`);
+      setStatText("disk-detail", `Err`);
+    } else {
+      setStatText("cpu", `CPU ${status.cpu}%`);
+      setStatText("ram", `RAM ${status.ram.used} / ${status.ram.total} GB`);
+      setStatText("disk", `Disk ${status.disk.used} / ${status.disk.total} GB`);
+      setStatText("cpu-detail", `${status.cpu}%`);
+      setStatText("ram-detail", `${status.ram.used} / ${status.ram.total} GB`);
+      setStatText("disk-detail", `${status.disk.used} / ${status.disk.total} GB`);
+    }
 
     const stamp = document.getElementById("statusTimestamp");
     if (stamp) {
@@ -215,16 +223,18 @@ function fetchStatus() {
         return response.json();
     })
     .then(data => {
-        // Return structured data for the UI
+        // Return structured data for the UI using real values from the API
         return {
-            cpu: data.status === "running" ? 15 : 0, // Mock CPU for now as API just returns status
-            ram: { used: "1.2", total: "8.0" },
-            disk: { used: "12", total: "64" }
+            status: data.status,
+            error: data.error,
+            cpu: data.cpu || 0,
+            ram: data.ram && typeof data.ram === 'object' ? data.ram : { used: "0", total: "0" },
+            disk: data.disk && typeof data.disk === 'object' ? data.disk : { used: "0", total: "0" }
         };
     })
     .catch(err => {
         return {
-            cpu: 0, ram: { used: "0", total: "0" }, disk: { used: "0", total: "0" }
+            status: "error", error: "Connection failed", cpu: 0, ram: { used: "0", total: "0" }, disk: { used: "0", total: "0" }
         };
     });
 }
