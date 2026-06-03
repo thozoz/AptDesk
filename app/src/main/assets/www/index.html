@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AptDesk | Sign in</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <script src="js/app.js" defer></script>
+  </head>
+  <body data-page="login">
+    <div class="app-shell login-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">AptDesk</span>
+          <span class="brand-subtitle">Management Console</span>
+        </div>
+        <div class="topbar-status">
+          <span class="badge badge-neutral">Offline-ready</span>
+          <span class="badge badge-info">Local demo</span>
+        </div>
+      </header>
+      <main class="login-main">
+        <section class="login-card">
+          <h1>Sign in</h1>
+          <p>Local access for the AptDesk dashboard shell.</p>
+          <form id="loginForm">
+            <label class="form-field">
+              <span>Username</span>
+              <input type="text" name="username" autocomplete="username" required />
+            </label>
+            <label class="form-field">
+              <span>Password</span>
+              <input type="password" name="password" autocomplete="current-password" required />
+            </label>
+            <button class="primary-button" type="submit">Enter Console</button>
+            <div id="loginMessage" class="form-message" aria-live="polite"></div>
+          </form>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

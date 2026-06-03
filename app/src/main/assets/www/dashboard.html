@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AptDesk | Dashboard</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <script src="js/app.js" defer></script>
+  </head>
+  <body data-page="dashboard">
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">AptDesk</span>
+          <span class="brand-subtitle">Node aptdesk-01</span>
+        </div>
+        <div class="topbar-status">
+          <span class="badge badge-success">Online</span>
+          <span class="badge badge-neutral" data-stat="cpu">CPU 0%</span>
+          <span class="badge badge-neutral" data-stat="ram">RAM 0 GB</span>
+          <span class="badge badge-neutral" data-stat="disk">Disk 0 GB</span>
+        </div>
+        <div class="topbar-actions">
+          <button class="ghost-button" id="refreshBtn" type="button">Refresh</button>
+          <button class="ghost-button" type="button">Settings</button>
+        </div>
+      </header>
+
+      <div class="dashboard-body">
+        <aside class="sidebar">
+          <div class="sidebar-header">Resources</div>
+          <div class="tree">
+            <div class="tree-node">AptDesk node</div>
+            <ul class="tree-list">
+              <li>
+                <button class="tree-item active" type="button" data-tab="desktop">Desktop</button>
+              </li>
+              <li>
+                <button class="tree-item" type="button" data-tab="terminal">Terminal</button>
+              </li>
+              <li>
+                <button class="tree-item" type="button" data-tab="files">Files</button>
+              </li>
+              <li>
+                <button class="tree-item" type="button" data-tab="software">Software</button>
+              </li>
+              <li>
+                <button class="tree-item" type="button" data-tab="stats">Stats</button>
+              </li>
+            </ul>
+          </div>
+        </aside>
+
+        <main class="workspace">
+          <div class="tabs">
+            <button class="tab-button active" type="button" data-tab="desktop">Desktop</button>
+            <button class="tab-button" type="button" data-tab="terminal">Terminal</button>
+            <button class="tab-button" type="button" data-tab="files">Files</button>
+            <button class="tab-button" type="button" data-tab="software">Software</button>
+            <button class="tab-button" type="button" data-tab="stats">Stats</button>
+          </div>
+
+          <section class="tab-panel active" id="tab-desktop" data-tab="desktop">
+            <div class="toolbar">
+              <button class="primary-button" type="button" disabled>Connect Desktop</button>
+              <button class="ghost-button" type="button" disabled>Fullscreen</button>
+              <span class="toolbar-meta">Awaiting /ws/vnc/* stream</span>
+            </div>
+            <div class="status-strip">
+              <span class="badge badge-warning">Idle</span>
+              <span class="status-text">noVNC placeholder reserved for remote display.</span>
+            </div>
+            <div class="panel placeholder-panel">
+              <h3>Desktop Stream</h3>
+              <p>This panel will embed noVNC once the backend exposes <code>/ws/vnc/*</code>.</p>
+              <div class="placeholder-grid">
+                <div class="placeholder-block"></div>
+                <div class="placeholder-block"></div>
+                <div class="placeholder-block"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="tab-panel" id="tab-terminal" data-tab="terminal">
+            <div class="toolbar">
+              <button class="primary-button" type="button" disabled>Open Terminal</button>
+              <button class="ghost-button" type="button" disabled>Copy Session</button>
+              <span class="toolbar-meta">Awaiting /ws/term/* stream</span>
+            </div>
+            <div class="status-strip">
+              <span class="badge badge-warning">Idle</span>
+              <span class="status-text">xterm.js placeholder reserved for interactive shell.</span>
+            </div>
+            <div class="panel placeholder-panel">
+              <h3>Terminal Workspace</h3>
+              <p>The terminal area will connect to <code>/ws/term/*</code> once ready.</p>
+              <div class="terminal-placeholder">
+                <span>$ aptdesk-shell --connect</span>
+                <span class="muted">Waiting for backend integration...</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="tab-panel" id="tab-files" data-tab="files">
+            <div class="toolbar">
+              <button class="primary-button" type="button">New Folder</button>
+              <button class="ghost-button" type="button">Upload</button>
+              <span class="toolbar-meta">/api/files/list</span>
+            </div>
+            <div class="status-strip">
+              <span class="badge badge-info">Local cache</span>
+              <span class="status-text">Mock file listing loaded.</span>
+            </div>
+            <div class="panel">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Size</th>
+                    <th>Modified</th>
+                  </tr>
+                </thead>
+                <tbody id="filesTable"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="tab-panel" id="tab-software" data-tab="software">
+            <div class="toolbar">
+              <button class="primary-button" type="button">Check Updates</button>
+              <button class="ghost-button" type="button">Add Package</button>
+              <span class="toolbar-meta">/api/software/install</span>
+            </div>
+            <div class="status-strip">
+              <span class="badge badge-info">Repository OK</span>
+              <span class="status-text">Mock package list ready.</span>
+            </div>
+            <div class="panel">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Package</th>
+                    <th>Version</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="softwareTable"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="tab-panel" id="tab-stats" data-tab="stats">
+            <div class="toolbar">
+              <button class="primary-button" type="button" id="statsRefreshBtn">Refresh Stats</button>
+              <span class="toolbar-meta">/api/status</span>
+            </div>
+            <div class="status-strip">
+              <span class="badge badge-success">Live mock</span>
+              <span class="status-text" id="statusTimestamp">Updated just now</span>
+            </div>
+            <div class="panel-grid">
+              <div class="panel stat-card">
+                <h4>CPU Load</h4>
+                <div class="stat-value" data-stat="cpu-detail">0%</div>
+                <div class="stat-subtext">4 cores</div>
+              </div>
+              <div class="panel stat-card">
+                <h4>Memory</h4>
+                <div class="stat-value" data-stat="ram-detail">0 GB</div>
+                <div class="stat-subtext">Swap ready</div>
+              </div>
+              <div class="panel stat-card">
+                <h4>Disk</h4>
+                <div class="stat-value" data-stat="disk-detail">0 GB</div>
+                <div class="stat-subtext">NVMe /data</div>
+              </div>
+            </div>
+            <div class="panel">
+              <h3>Active Sessions</h3>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Session</th>
+                    <th>User</th>
+                    <th>Uptime</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="sessionTable"></tbody>
+              </table>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>
