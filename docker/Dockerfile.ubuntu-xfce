@@ -1,0 +1,67 @@
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=en_US.UTF-8
+
+# Base system
+RUN apt-get update && apt-get install -y \
+    locales sudo \
+    && locale-gen en_US.UTF-8
+
+# XFCE4 desktop environment
+RUN apt-get install -y \
+    xfce4 xfce4-goodies \
+    xfce4-terminal \
+    thunar \
+    mousepad \
+    ristretto \
+    xfce4-taskmanager
+
+# Display & VNC
+RUN apt-get install -y \
+    xvfb \
+    tigervnc-scraping-server \
+    dbus-x11
+
+# Terminal & Web Proxy (ttyd, websockify, caddy)
+RUN apt-get install -y \
+    ttyd \
+    websockify \
+    debian-keyring debian-archive-keyring apt-transport-https curl \
+    && curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg \
+    && curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list \
+    && apt-get update && apt-get install caddy
+
+# Development tools
+RUN apt-get install -y \
+    python3 python3-pip python3-venv \
+    nodejs npm \
+    git wget \
+    build-essential gcc g++ make cmake \
+    nano vim
+
+# Utilities
+RUN apt-get install -y \
+    firefox \
+    htop neofetch \
+    zip unzip tar \
+    net-tools iputils-ping \
+    openssh-client \
+    ca-certificates
+
+# Create default user
+RUN useradd -m -s /bin/bash -G sudo user \
+    && echo "user:aptdesk" | chpasswd \
+    && echo "user ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Setup Caddy config directory
+RUN mkdir -p /opt/aptdesk/www/vnc && mkdir -p /opt/aptdesk/www/term
+
+# Cleanup
+RUN apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
+    && find /usr -name "*.pyc" -delete
+
+# Copy setup scripts and configs (will be mapped via volumes or injected by Android)
+# For the Docker build phase, we just ensure the directories exist.
+RUN mkdir -p /etc/skel/.config/xfce4

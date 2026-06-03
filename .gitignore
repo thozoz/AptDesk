@@ -1,0 +1,17 @@
+# IDE / Editor 
+.idea/
+.vscode/
+.claude/
+.gemini/
+
+# Build artifacts
+docker/*.tar.gz
+docker/*.sha256
+
+# Android build outputs
+*.apk
+*.aar
+build/
+app/build/
+.gradle/
+local.properties
