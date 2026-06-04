@@ -135,6 +135,9 @@ class ProotManager(private val context: Context) {
         export TMPDIR=/tmp
         export XDG_RUNTIME_DIR=/tmp
 
+        # QtWebEngine/Chromium apps often need this to not crash immediately in PRoot
+        export QTWEBENGINE_DISABLE_SANDBOX=1
+
         # Fix DNS resolution (Ubuntu defaults to systemd-resolved which isn't running)
         rm -f /etc/resolv.conf
         echo "nameserver 8.8.8.8" > /etc/resolv.conf
@@ -196,13 +199,13 @@ class ProotManager(private val context: Context) {
                 }
                 redirectErrorStream(true)
             }.start()
-            
+            val output = proc.inputStream.bufferedReader().readText()
             proc.waitFor(120, java.util.concurrent.TimeUnit.SECONDS)
             if (proc.isAlive) {
                 proc.destroyForcibly()
                 return "Error: Command timed out after 120 seconds."
             }
-            return proc.inputStream.bufferedReader().readText()
+            return output
         } catch(e: Exception) {
             return "Error executing command: ${e.message}"
         }
