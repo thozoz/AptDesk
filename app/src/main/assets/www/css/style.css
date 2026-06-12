@@ -435,3 +435,20 @@ code {
 }
 
 .danger-button { background: rgba(244,67,54,0.05); border: 1px solid rgba(244,67,54,0.2); color: #bd5c5c; border-radius: 4px; padding: 8px 12px; font-size: 13px; cursor: pointer; transition: all 0.2s; } .danger-button:hover:not(:disabled) { background: rgba(244,67,54,0.1); border-color: rgba(244,67,54,0.3); color: #cf6b6b; }
+
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-content {
+  background: #1a1e26; border: 1px solid #2b2f36; border-radius: 8px;
+  padding: 24px; min-width: 360px; max-width: 480px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.modal-content h2 { margin: 0; }
+.modal-content p { margin: 0; color: #9aa3b2; font-size: 13px; }
+.setting-item { display: flex; flex-direction: column; gap: 6px; }
+.setting-item label { font-size: 12px; color: #9aa3b2; }
+.setting-item select, .setting-item input[type="checkbox"] { cursor: pointer; }
+.setting-item .primary-button, .setting-item .ghost-button { width: fit-content; }

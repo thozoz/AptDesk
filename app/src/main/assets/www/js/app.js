@@ -42,11 +42,33 @@ function initLogin() {
 function initDashboard() {
   const refreshButton = document.getElementById("refreshBtn");
   const statsRefreshButton = document.getElementById("statsRefreshBtn");
+  const settingsButton = document.getElementById("settingsBtn");
+  const connectDesktopBtn = document.getElementById("connectDesktopBtn");
+  const openTerminalBtn = document.getElementById("openTerminalBtn");
 
   setupTabs();
   renderSoftware();
   renderSessions();
   updateStatus();
+
+  // Wire up new buttons
+  if (settingsButton) {
+    settingsButton.addEventListener("click", () => {
+      showSettingsModal();
+    });
+  }
+
+  if (connectDesktopBtn) {
+    connectDesktopBtn.addEventListener("click", () => {
+      setActiveTab("desktop");
+    });
+  }
+
+  if (openTerminalBtn) {
+    openTerminalBtn.addEventListener("click", () => {
+      setActiveTab("terminal");
+    });
+  }
 
   if (refreshButton) {
     refreshButton.addEventListener("click", updateStatus);
@@ -127,7 +149,7 @@ function initDashboard() {
 }
 
 function setupTabs() {
-  const tabTriggers = document.querySelectorAll("[data-tab]");
+  const tabTriggers = document.querySelectorAll(".tree-item, .tab-button");
 
   tabTriggers.forEach((trigger) => {
     trigger.addEventListener("click", () => {
@@ -138,48 +160,116 @@ function setupTabs() {
     });
   });
 
-  setActiveTab("desktop");
+  // Load the desktop iframe immediately on page load
+  setTimeout(() => {
+    loadTabIframe("desktop");
+  }, 500);
+}
+
+function loadTabIframe(tab) {
+  const iframeId = `iframe-${tab}`;
+  const iframe = document.getElementById(iframeId);
+
+  if (!iframe) return;
+
+  // Don't reload if already loaded
+  if (iframe.src && iframe.src.length > 0) return;
+
+  switch(tab) {
+    case "desktop":
+      iframe.src = "/vnc/vnc.html?autoconnect=true&resize=scale&path=vnc/";
+      document.querySelector('#tab-desktop .status-text').textContent = "Embedded noVNC interface";
+      document.querySelector('#tab-desktop .badge').className = "badge badge-success";
+      document.querySelector('#tab-desktop .badge').textContent = "Running";
+      break;
+    case "terminal":
+      iframe.src = "/term/";
+      document.querySelector('#tab-terminal .status-text').textContent = "Embedded ttyd interface";
+      document.querySelector('#tab-terminal .badge').className = "badge badge-success";
+      document.querySelector('#tab-terminal .badge').textContent = "Running";
+      break;
+    case "files":
+      iframe.src = "/filesapp/";
+      document.querySelector('#tab-files .status-text').textContent = "Embedded file browser";
+      document.querySelector('#tab-files .badge').className = "badge badge-success";
+      document.querySelector('#tab-files .badge').textContent = "Running";
+      break;
+  }
 }
 
 function setActiveTab(tab) {
+  // Update active state of buttons
   document.querySelectorAll(".tree-item, .tab-button").forEach((item) => {
     item.classList.toggle("active", item.getAttribute("data-tab") === tab);
   });
 
+  // Show/hide panels
   document.querySelectorAll(".tab-panel").forEach((panel) => {
     panel.classList.toggle("active", panel.getAttribute("data-tab") === tab);
   });
 
-  if (tab === "terminal" && !termLoaded) {
-    const iframe = document.getElementById("term-iframe");
-    if (iframe) {
-        iframe.src = "/term/";
-        termLoaded = true;
-        document.querySelector('#tab-terminal .status-text').textContent = "Embedded ttyd interface";
-        document.querySelector('#tab-terminal .badge').className = "badge badge-success";
-        document.querySelector('#tab-terminal .badge').textContent = "Running";
-    }
-  } else if (tab === "desktop" && !vncLoaded) {
-    const iframe = document.getElementById("vnc-iframe");
-    if (iframe) {
-        // autoconnect=true tells noVNC to connect immediately
-        // path=vnc/ tells noVNC to connect its websocket to /vnc/ instead of the default /websockify
-        iframe.src = "/vnc/vnc.html?autoconnect=true&resize=scale&path=vnc/";
-        vncLoaded = true;
-        document.querySelector('#tab-desktop .status-text').textContent = "Embedded noVNC interface";
-        document.querySelector('#tab-desktop .badge').className = "badge badge-success";
-        document.querySelector('#tab-desktop .badge').textContent = "Running";
-    }
-  } else if (tab === "files" && !filesLoaded) {
-    const iframe = document.getElementById("files-iframe");
-    if (iframe) {
-        iframe.src = "/filesapp/";
-        filesLoaded = true;
-    }
-  }
+  // Load iframe for the tab (debounced)
+  let debounceTimer;
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => loadTabIframe(tab), 100);
 }
 
 // Removed old mock renderFiles()
+
+function showSettingsModal() {
+  const modalHtml = `
+    <div id="settings-modal" class="modal-overlay">
+      <div class="modal-content">
+        <h2>Settings</h2>
+        <p>AptDesk Configuration</p>
+        
+        <div class="setting-item">
+          <label for="resolution">Display Resolution:</label>
+          <select id="resolution" style="width: 100%; padding: 8px; margin-top: 4px;">
+            <option value="1280x720">1280x720 (HD)</option>
+            <option value="1920x1080">1920x1080 (Full HD)</option>
+            <option value="2560x1440">2560x1440 (QHD)</option>
+          </select>
+        </div>
+
+        <div class="setting-item">
+          <label for="autoConnect">Auto-connect on startup:</label>
+          <input type="checkbox" id="autoConnect" checked />
+        </div>
+
+        <div class="setting-item">
+          <button id="saveSettingsBtn" class="primary-button">Save Settings</button>
+          <button id="closeSettingsBtn" class="ghost-button">Close</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  const closeBtn = document.getElementById('closeSettingsBtn');
+  const saveBtn = document.getElementById('saveSettingsBtn');
+  
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      document.getElementById('settings-modal').remove();
+    });
+  }
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', () => {
+      const resolution = document.getElementById('resolution').value;
+      const autoConnect = document.getElementById('autoConnect').checked;
+      
+      // Save to localStorage
+      localStorage.setItem('aptdesk.resolution', resolution);
+      localStorage.setItem('aptdesk.autoConnect', autoConnect.toString());
+      
+      alert(`Settings saved!\nResolution: ${resolution}\nAuto-connect: ${autoConnect ? 'Enabled' : 'Disabled'}`);
+      document.getElementById('settings-modal').remove();
+    });
+  }
+}
 
 function renderSoftware(searchQuery = null) {
   const tableBody = document.getElementById("softwareTable");
@@ -227,24 +317,9 @@ function renderSoftware(searchQuery = null) {
     });
 }
 
+// sessionTable doesn't exist in dashboard.html, so we'll just log
 function renderSessions() {
-  const tableBody = document.getElementById("sessionTable");
-  if (!tableBody) {
-    return;
-  }
-
-  fetchSessions().then((sessions) => {
-    tableBody.innerHTML = "";
-    sessions.forEach((session) => {
-      const row = document.createElement("tr");
-      row.innerHTML = `
-        <td>${session.name}</td>
-        <td>${session.user}</td>
-        <td><span class="badge badge-${session.badge}">${session.status}</span></td>
-      `;
-      tableBody.appendChild(row);
-    });
-  });
+  console.log('Sessions:', fetchSessions());
 }
 
 function updateStatus() {
