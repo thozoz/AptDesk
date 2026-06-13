@@ -265,8 +265,23 @@ class WebServer(
         }
         
         try {
+            // Parse POST body parameters if any
+            try {
+                session.parseBody(null)
+            } catch (_: Exception) {}
+
+            val params = session.parameters
+            val prefs = context.getSharedPreferences("aptdesk_prefs", Context.MODE_PRIVATE)
+            val resolution = params["resolution"]?.firstOrNull() ?: prefs.getString("resolution", "1280x720") ?: "1280x720"
+            val enableGpu = params["enableGpu"]?.firstOrNull()?.toBoolean() ?: prefs.getBoolean("enableGpu", true)
+            
+            prefs.edit()
+                .putString("resolution", resolution)
+                .putBoolean("enableGpu", enableGpu)
+                .apply()
+            
             prootManager.stop()
-            prootManager.start()
+            prootManager.start(resolution, enableGpu)
             return newFixedLengthResponse(
                 Response.Status.OK,
                 "application/json",
@@ -277,7 +292,7 @@ class WebServer(
                 Response.Status.INTERNAL_ERROR,
                 "application/json",
                 """{"error":"${e.message}"}"""
-            )
+             )
         }
     }
 

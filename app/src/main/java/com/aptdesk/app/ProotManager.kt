@@ -20,10 +20,11 @@ class ProotManager(
     // can find it by the exact SONAME that libproot.so requires.
     private val libsDir = File(context.filesDir, "libs")
     private var process: Process? = null
+    private var virglProcess: Process? = null
     private var logThread: Thread? = null
 
     @Throws(IOException::class, IllegalStateException::class)
-    fun start(resolution: String = "1280x720") {
+    fun start(resolution: String = "1280x720", enableGpu: Boolean = true) {
         if (process?.isAlive == true) {
             return
         }
@@ -40,7 +41,38 @@ class ProotManager(
         val shmDir = File(context.filesDir, "shm")
         shmDir.mkdirs()
 
-        val command = listOf(
+        // Handle VirGL host rendering server
+        val virglBinary = File(nativeDir, "libvirgl_test_server.so")
+        var gpuActive = enableGpu
+        if (enableGpu) {
+            if (!virglBinary.exists()) {
+                Log.w(TAG, "libvirgl_test_server.so not found, falling back to software rendering")
+                gpuActive = false
+            } else {
+                try {
+                    ensureBinary(virglBinary, "libvirgl_test_server.so")
+                    val virglSharedDir = File(context.cacheDir, "virgl-shared").apply { mkdirs() }
+                    // Clean up stale socket file to prevent bind address in use errors
+                    File(virglSharedDir, ".virgl_test").delete()
+
+                    virglProcess = processBuilderFactory(listOf(
+                        virglBinary.absolutePath,
+                        "--socket-path", File(virglSharedDir, ".virgl_test").absolutePath,
+                        "--multi-clients"
+                    )).apply {
+                        redirectErrorStream(true)
+                        environment()["LD_LIBRARY_PATH"] = nativeDir.absolutePath
+                    }.start()
+                    Log.i(TAG, "Started virgl_test_server at ${virglSharedDir.absolutePath}/.virgl_test")
+                    startVirglLogPump(virglProcess)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to start virgl_test_server, falling back to software rendering", e)
+                    gpuActive = false
+                }
+            }
+        }
+
+        val command = mutableListOf(
             prootBinary.absolutePath,
             "-0",
             "--kill-on-exit",
@@ -49,10 +81,19 @@ class ProotManager(
             "-b", "/proc:/proc",
             "-b", "/sys:/sys",
             "-b", "${sharedDir.absolutePath}:/shared",
-            "-b", "${shmDir.absolutePath}:/dev/shm",
-            "--rootfs=${rootfsDir.absolutePath}",
-            "/bin/bash", "-c", startupScript(resolution)
+            "-b", "${shmDir.absolutePath}:/dev/shm"
         )
+
+        if (gpuActive) {
+            val virglSharedDir = File(context.cacheDir, "virgl-shared")
+            command.add("-b")
+            command.add("${virglSharedDir.absolutePath}:/tmp")
+        }
+
+        command.add("--rootfs=${rootfsDir.absolutePath}")
+        command.add("/bin/bash")
+        command.add("-c")
+        command.add(startupScript(resolution, gpuActive))
 
         process = processBuilderFactory(command).apply {
             environment()["PROOT_TMP_DIR"] = context.cacheDir.path
@@ -74,11 +115,45 @@ class ProotManager(
     fun stop() {
         process?.destroy()
         process = null
+        virglProcess?.destroy()
+        virglProcess = null
         logThread?.interrupt()
         logThread = null
+        killOrphanedProcesses()
+    }
+
+    private fun killOrphanedProcesses() {
+        val cmds = listOf("Xvfb", "x0vncserver", "websockify", "caddy", "ttyd", "filebrowser", "xfce4-session", "libvirgl_test_server.so")
+        for (cmd in cmds) {
+            try {
+                // Use toybox/toolbox pkill on Android host to clean up orphaned processes
+                Runtime.getRuntime().exec(arrayOf("pkill", "-9", "-f", cmd)).waitFor()
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to kill $cmd", e)
+            }
+        }
     }
 
     fun isRunning(): Boolean = process?.isAlive == true
+
+    private fun startVirglLogPump(process: Process?) {
+        if (process == null) return
+        Thread {
+            try {
+                process.inputStream.bufferedReader().useLines { lines ->
+                    lines.forEach { line -> Log.i("VirglServer", line) }
+                }
+            } catch (e: IOException) {
+                Log.w("VirglServer", "Log stream closed", e)
+            }
+            if (!process.isAlive) {
+                Log.w("VirglServer", "Process exited with code ${process.exitValue()}")
+            }
+        }.apply {
+            isDaemon = true
+            start()
+        }
+    }
 
     private fun startLogPump(process: Process?) {
         if (process == null) {
@@ -129,7 +204,7 @@ class ProotManager(
         }
     }
 
-    private fun startupScript(resolution: String) = """
+    private fun startupScript(resolution: String, enableGpu: Boolean) = """
         #!/bin/bash
         export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
         export DISPLAY=:0
@@ -137,6 +212,13 @@ class ProotManager(
         export LANG=en_US.UTF-8
         export TMPDIR=/tmp
         export XDG_RUNTIME_DIR=/tmp
+
+        ${if (enableGpu) """
+        # Enable VirGL GPU Acceleration overrides
+        export GALLIUM_DRIVER=virpipe
+        export MESA_GL_VERSION_OVERRIDE=3.3
+        export MESA_GLES_VERSION_OVERRIDE=3.0
+        """ else ""}
 
         # QtWebEngine/Chromium apps often need this to not crash immediately in PRoot
         export QTWEBENGINE_DISABLE_SANDBOX=1
@@ -156,6 +238,20 @@ class ProotManager(
             xdpyinfo -display :0 >/dev/null 2>&1 && break
             sleep 0.5
         done
+
+        # Pre-configure XFCE to disable compositing before starting to prevent GPU window/border glitches in VNC/Xvfb
+        mkdir -p /root/.config/xfce4/xfconf/xfce-perchannel-xml
+        cat <<'EOF' > /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xfwm4" version="1.0">
+  <property name="general" type="empty">
+    <property name="use_compositing" type="bool" value="false"/>
+  </property>
+</channel>
+EOF
+
+        # Also attempt disabling dynamically as a fallback
+        (sleep 3 && xfconf-query -c xfwm4 -p /general/use_compositing -s false) &
 
         startxfce4 >/var/log/xfce.log 2>&1 &
         x0vncserver -display :0 -rfbport 5900 -SecurityTypes None >/var/log/x0vncserver.log 2>&1 &

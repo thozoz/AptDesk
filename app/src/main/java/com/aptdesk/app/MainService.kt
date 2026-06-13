@@ -88,9 +88,11 @@ class MainService : Service() {
             updateNotification("Extracting web assets...")
             rootfsManager.extractAssets()
 
-            AptDeskState.state.value = AptDeskState.State.StartingBackend
             updateNotification("Launching proot...")
-            prootManager.start()
+            val prefs = getSharedPreferences("aptdesk_prefs", Context.MODE_PRIVATE)
+            val resolution = prefs.getString("resolution", "1280x720") ?: "1280x720"
+            val enableGpu = prefs.getBoolean("enableGpu", true)
+            prootManager.start(resolution, enableGpu)
             
             val ip = NetworkInfo.getLocalIpAddress()
             val url = "http://$ip:8080"

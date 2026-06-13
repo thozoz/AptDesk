@@ -229,6 +229,10 @@ function setActiveTab(tab) {
 // Removed old mock renderFiles()
 
 function showSettingsModal() {
+  const savedResolution = localStorage.getItem('aptdesk.resolution') || '1280x720';
+  const savedAutoConnect = localStorage.getItem('aptdesk.autoConnect') !== 'false';
+  const savedEnableGpu = localStorage.getItem('aptdesk.enableGpu') !== 'false';
+
   const modalHtml = `
     <div id="settings-modal" class="modal-overlay">
       <div class="modal-content">
@@ -238,15 +242,20 @@ function showSettingsModal() {
         <div class="setting-item">
           <label for="resolution">Display Resolution:</label>
           <select id="resolution" style="width: 100%; padding: 8px; margin-top: 4px;">
-            <option value="1280x720">1280x720 (HD)</option>
-            <option value="1920x1080">1920x1080 (Full HD)</option>
-            <option value="2560x1440">2560x1440 (QHD)</option>
+            <option value="1280x720" ${savedResolution === '1280x720' ? 'selected' : ''}>1280x720 (HD)</option>
+            <option value="1920x1080" ${savedResolution === '1920x1080' ? 'selected' : ''}>1920x1080 (Full HD)</option>
+            <option value="2560x1440" ${savedResolution === '2560x1440' ? 'selected' : ''}>2560x1440 (QHD)</option>
           </select>
         </div>
 
-        <div class="setting-item">
+        <div class="setting-item" style="margin-top: 12px;">
           <label for="autoConnect">Auto-connect on startup:</label>
-          <input type="checkbox" id="autoConnect" checked />
+          <input type="checkbox" id="autoConnect" ${savedAutoConnect ? 'checked' : ''} />
+        </div>
+
+        <div class="setting-item" style="margin-top: 12px; margin-bottom: 16px;">
+          <label for="enableGpu" style="display: inline-block; margin-right: 8px;">Enable GPU Acceleration (VirGL):</label>
+          <input type="checkbox" id="enableGpu" ${savedEnableGpu ? 'checked' : ''} />
         </div>
 
         <div class="setting-item">
@@ -272,13 +281,55 @@ function showSettingsModal() {
     saveBtn.addEventListener('click', () => {
       const resolution = document.getElementById('resolution').value;
       const autoConnect = document.getElementById('autoConnect').checked;
+      const enableGpu = document.getElementById('enableGpu').checked;
       
+      const oldResolution = localStorage.getItem('aptdesk.resolution') || '1280x720';
+      const oldEnableGpu = localStorage.getItem('aptdesk.enableGpu') === 'true';
+
       // Save to localStorage
       localStorage.setItem('aptdesk.resolution', resolution);
       localStorage.setItem('aptdesk.autoConnect', autoConnect.toString());
+      localStorage.setItem('aptdesk.enableGpu', enableGpu.toString());
       
-      alert(`Settings saved!\nResolution: ${resolution}\nAuto-connect: ${autoConnect ? 'Enabled' : 'Disabled'}`);
       document.getElementById('settings-modal').remove();
+
+      // If resolution or GPU toggle changed, request backend restart
+      if (resolution !== oldResolution || enableGpu !== oldEnableGpu) {
+        if (confirm("Display settings changed. Would you like to restart the container now to apply changes?")) {
+          // Trigger restart
+          const formData = new URLSearchParams();
+          formData.append('resolution', resolution);
+          formData.append('enableGpu', enableGpu.toString());
+
+          fetch('/api/restart', {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded'
+            }
+          })
+          .then(res => res.json())
+          .then(data => {
+            if (data.status === 'restarted') {
+              alert('Container successfully restarted with new settings!');
+              const iframe = document.getElementById('vnc-iframe');
+              if (iframe) {
+                iframe.src = ""; // reset src to reload
+                setTimeout(() => {
+                  iframe.src = "/vnc/vnc.html?autoconnect=true&resize=scale&path=vnc/";
+                }, 1000);
+              }
+            } else {
+              alert('Failed to restart container: ' + (data.error || 'Unknown error'));
+            }
+          })
+          .catch(err => {
+            alert('Error connecting to API server to restart: ' + err);
+          });
+        }
+      } else {
+        alert('Settings saved!');
+      }
     });
   }
 }

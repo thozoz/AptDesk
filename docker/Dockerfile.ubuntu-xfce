@@ -5,7 +5,9 @@ ENV LANG=en_US.UTF-8
 
 # Base system
 RUN apt-get update && apt-get install -y \
-    locales sudo \
+    software-properties-common locales sudo \
+    && add-apt-repository universe \
+    && apt-get update \
     && locale-gen en_US.UTF-8
 
 # XFCE4 desktop environment
@@ -19,7 +21,9 @@ RUN apt-get install -y \
 RUN apt-get install -y \
     xvfb \
     tigervnc-scraping-server \
-    dbus-x11
+    dbus-x11 \
+    libgl1-mesa-dri \
+    mesa-utils
 
 # Terminal & Web Proxy (ttyd, websockify, caddy)
 RUN apt-get install -y \

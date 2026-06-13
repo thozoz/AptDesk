@@ -20,6 +20,7 @@ No laptop required. No cloud subscription. No root access.
 ## Features
 
 - **One-tap Linux desktop** — Press Start, open your browser. XFCE desktop with VNC via noVNC.
+- **GPU Acceleration (v0.2.0+)** — Built-in VirGL hardware GPU acceleration. Offloads 3D, OpenGL, and WebGL rendering from the container to your Android host's physical GPU (Mali, Adreno, etc.).
 - **Built-in terminal** — Web-based shell via ttyd at `http://<ip>:8081`. Full bash access from any device.
 - **File browser** — Upload, download, and manage files from your browser at `http://<ip>:8083/filesapp`.
 - **Software manager** — Search, install, and remove apt packages from the web UI.
@@ -81,6 +82,12 @@ Your desktop IP is shown on the app screen after startup.
 
 The app downloads a prebuilt Ubuntu rootfs from GitHub Releases. On startup, it launches PRoot with the rootfs, starts Xvfb (virtual display), x0vncserver + noVNC for desktop access, ttyd for terminal, filebrowser for file management, and Caddy as the reverse proxy — all wrapped in a single foreground service.
 
+### GPU Acceleration (VirGL)
+
+Starting in v0.2.0, AptDesk includes hardware-accelerated rendering. When enabled, a host-side `libvirgl_test_server` process is spawned on the Android device. Inside the guest container, the Mesa driver is configured to use the `virpipe` driver (`GALLIUM_DRIVER=virpipe`). All 3D rendering and WebGL commands are serialized and sent over an isolated UNIX socket (`cacheDir/virgl-shared/.virgl_test`) to the host, which renders them directly on your phone's physical GPU (e.g. Mali, Adreno) at native hardware speeds.
+
+To ensure stability in headless VNC environments, XFCE compositing is automatically disabled on boot.
+
 ## Building
 
 Requires Android Studio Hedgehog or later.
@@ -131,7 +138,7 @@ AptDesk/
 │   │   ├── WebServer.kt          # nanohttpd REST API
 │   │   ├── AptDeskState.kt       # State management
 │   │   └── NetworkInfo.kt        # IP detection
-│   └── jniLibs/            # PRoot ARM64 binaries
+│   └── jniLibs/            # PRoot & VirGL host rendering ARM64 binaries (libproot.so, libvirgl_test_server.so, etc.)
 ├── docker/                 # Rootfs build scripts
 │   ├── Dockerfile.ubuntu-xfce    # Ubuntu XFCE rootfs build
 │   ├── build-rootfs.sh           # Rootfs packaging script (runs on Linux or WSL)
@@ -147,7 +154,9 @@ AptDesk/
 
 **Does this need root?** No. PRoot runs in userspace without any kernel modifications. Safe on stock, unrooted Android.
 
-**Is it slow?** Terminal and file operations are snappy. Desktop GUI has some latency over noVNC, similar to any web-based remote desktop. CPU sits at ~10-20% at idle.
+**Does it support GPU acceleration?** Yes! v0.2.0+ includes built-in VirGL GPU acceleration. This offloads WebGL, browser rendering, and 3D graphics to your phone's hardware GPU (Mali, Adreno, etc.). It can be toggled on or off from the Settings panel.
+
+**Is it slow?** Terminal and file operations are snappy. With GPU acceleration enabled, WebGL and 3D rendering run at hardware speeds (locked to your phone screen's refresh rate, e.g., 60Hz, 120Hz, or 144Hz, to prevent overheating and save battery). VNC desktop GUI itself has minor network latency, similar to any web-based remote desktop.
 
 **Can I install any Linux package?** Yes. The built-in software manager runs `apt-get` inside the rootfs. Search, install, and remove packages from the web UI.
 

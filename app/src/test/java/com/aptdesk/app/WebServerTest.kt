@@ -233,6 +233,6 @@ class WebServerTest {
         assertEquals("""{"status":"restarted"}""", resp2.body)
 
         verify { prootManager.stop() }
-        verify { prootManager.start() }
+        verify { prootManager.start(any(), any()) }
     }
 }
