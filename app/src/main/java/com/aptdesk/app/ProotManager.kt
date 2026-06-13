@@ -7,7 +7,10 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 
-class ProotManager(private val context: Context) {
+class ProotManager(
+    private val context: Context,
+    private val processBuilderFactory: (List<String>) -> ProcessBuilder = { ProcessBuilder(it) }
+) {
     private val rootfsDir = File(context.filesDir, "rootfs")
     private val nativeDir = File(context.applicationInfo.nativeLibraryDir)
     private val prootBinary = File(nativeDir, "libproot.so")
@@ -51,7 +54,7 @@ class ProotManager(private val context: Context) {
             "/bin/bash", "-c", startupScript(resolution)
         )
 
-        process = ProcessBuilder(command).apply {
+        process = processBuilderFactory(command).apply {
             environment()["PROOT_TMP_DIR"] = context.cacheDir.path
             environment()["PROOT_LOADER"] = prootLoader.absolutePath
             // Prepend our libs dir so the linker finds libtalloc.so.2 before
@@ -188,7 +191,7 @@ class ProotManager(private val context: Context) {
             "/bin/bash", "-c", cmd
         )
         try {
-            val proc = ProcessBuilder(command).apply {
+            val proc = processBuilderFactory(command).apply {
                 environment()["PROOT_TMP_DIR"] = context.cacheDir.path
                 environment()["PROOT_LOADER"] = prootLoader.absolutePath
                 val existingPath = environment()["LD_LIBRARY_PATH"] ?: ""

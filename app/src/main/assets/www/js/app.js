@@ -167,7 +167,16 @@ function setupTabs() {
 }
 
 function loadTabIframe(tab) {
-  const iframeId = `iframe-${tab}`;
+  let iframeId;
+  if (tab === "desktop") {
+    iframeId = "vnc-iframe";
+  } else if (tab === "terminal") {
+    iframeId = "term-iframe";
+  } else if (tab === "files") {
+    iframeId = "files-iframe";
+  } else {
+    iframeId = `iframe-${tab}`;
+  }
   const iframe = document.getElementById(iframeId);
 
   if (!iframe) return;
@@ -178,22 +187,25 @@ function loadTabIframe(tab) {
   switch(tab) {
     case "desktop":
       iframe.src = "/vnc/vnc.html?autoconnect=true&resize=scale&path=vnc/";
-      document.querySelector('#tab-desktop .status-text').textContent = "Embedded noVNC interface";
-      document.querySelector('#tab-desktop .badge').className = "badge badge-success";
-      document.querySelector('#tab-desktop .badge').textContent = "Running";
       break;
     case "terminal":
       iframe.src = "/term/";
-      document.querySelector('#tab-terminal .status-text').textContent = "Embedded ttyd interface";
-      document.querySelector('#tab-terminal .badge').className = "badge badge-success";
-      document.querySelector('#tab-terminal .badge').textContent = "Running";
       break;
     case "files":
       iframe.src = "/filesapp/";
-      document.querySelector('#tab-files .status-text').textContent = "Embedded file browser";
-      document.querySelector('#tab-files .badge').className = "badge badge-success";
-      document.querySelector('#tab-files .badge').textContent = "Running";
       break;
+  }
+
+  const statusText = document.querySelector(`#tab-${tab} .status-text`);
+  const badge = document.querySelector(`#tab-${tab} .badge`);
+  if (statusText) {
+    if (tab === "desktop") statusText.textContent = "Embedded noVNC interface";
+    else if (tab === "terminal") statusText.textContent = "Embedded ttyd interface";
+    else if (tab === "files") statusText.textContent = "Embedded file browser";
+  }
+  if (badge) {
+    badge.className = "badge badge-success";
+    badge.textContent = "Running";
   }
 }
 

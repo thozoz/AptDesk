@@ -6,6 +6,11 @@ object AptDeskState {
     val state = MutableStateFlow<State>(State.Idle)
     val progress = MutableStateFlow(0)
 
+    fun reset() {
+        state.value = State.Idle
+        progress.value = 0
+    }
+
     sealed class State {
         object Idle : State()
         object DownloadingRootfs : State()

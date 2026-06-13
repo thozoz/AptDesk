@@ -70,7 +70,7 @@ class RootfsManager(private val context: Context) {
         }
     }
 
-    private fun extractArchive(archive: File, targetDir: File) {
+    internal fun extractArchive(archive: File, targetDir: File) {
         FileInputStream(archive).use { fileInput ->
             GZIPInputStream(fileInput).use { gzipInput ->
                 TarArchiveInputStream(gzipInput).use { tarInput ->
@@ -123,7 +123,7 @@ class RootfsManager(private val context: Context) {
         applyExecutableFlag(entry, outputFile)
     }
 
-    private fun resolveEntry(targetDir: File, entryName: String): File {
+    internal fun resolveEntry(targetDir: File, entryName: String): File {
         val targetCanonical = targetDir.canonicalFile
         val outputFile = File(targetDir, entryName)
         val outputCanonical = outputFile.canonicalFile
@@ -150,7 +150,7 @@ class RootfsManager(private val context: Context) {
         }
     }
 
-    private fun applyExecutableFlag(entry: TarArchiveEntry, outputFile: File) {
+    internal fun applyExecutableFlag(entry: TarArchiveEntry, outputFile: File) {
         val mode = entry.mode
         val isExecutable = mode and 0b001 != 0 || mode and 0b010 != 0 || mode and 0b100 != 0
         if (isExecutable && !outputFile.setExecutable(true, false)) {
