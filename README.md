@@ -93,6 +93,25 @@ cd AptDesk
 
 The debug APK will be at `app/build/outputs/apk/debug/app-debug.apk`.
 
+### Building the Rootfs
+
+The custom, optimized Ubuntu XFCE rootfs can be rebuilt and packaged using the provided scripts:
+
+- **On Linux (Native)**:
+  ```bash
+  cd docker
+  chmod +x build-rootfs.sh
+  ./build-rootfs.sh
+  ```
+- **On Windows (WSL + Docker Desktop)**:
+  Run the PowerShell wrapper script to automate the build inside WSL:
+  ```powershell
+  cd docker
+  .\docker.ps1
+  ```
+  *(Optional: Use `-NoCache` to force rebuild without Docker cache)*
+
+
 ### Requirements
 
 - Android Studio Hedgehog (2023.1.1) or later
@@ -115,7 +134,8 @@ AptDesk/
 │   └── jniLibs/            # PRoot ARM64 binaries
 ├── docker/                 # Rootfs build scripts
 │   ├── Dockerfile.ubuntu-xfce    # Ubuntu XFCE rootfs build
-│   └── build-rootfs.sh           # Rootfs packaging
+│   ├── build-rootfs.sh           # Rootfs packaging script (runs on Linux or WSL)
+│   └── docker.ps1                # PowerShell wrapper script for Windows/WSL
 ├── configs/
 │   └── Caddyfile           # Caddy reverse proxy config
 ├── scripts/

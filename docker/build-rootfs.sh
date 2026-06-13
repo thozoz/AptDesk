@@ -1,21 +1,24 @@
 #!/bin/bash
 set -e
 
-echo "[+] Building AptDesk Ubuntu XFCE Rootfs for ARM64..."
+cd "$(dirname "$0")"
 
-# Build the docker image for ARM64
-docker buildx build --platform linux/arm64 \
+# Fix CRLF in Dockerfile
+sed -i 's/\r$//' Dockerfile.ubuntu-xfce 2>/dev/null || true
+
+NO_CACHE=""
+if [ "$1" = "--no-cache" ]; then
+    NO_CACHE="--no-cache"
+fi
+
+echo "[+] Building AptDesk Ubuntu XFCE Rootfs for ARM64..."
+docker buildx build $NO_CACHE --platform linux/arm64 \
     -t aptdesk-rootfs:arm64 \
     -f Dockerfile.ubuntu-xfce .
 
 echo "[+] Exporting filesystem to tarball..."
-# Create a temporary container
 CONTAINER=$(docker create aptdesk-rootfs:arm64)
-
-# Export and compress the filesystem
 docker export $CONTAINER | gzip > aptdesk-rootfs-arm64.tar.gz
-
-# Remove the temporary container
 docker rm $CONTAINER
 
 echo "[+] Generating SHA256 checksum..."
