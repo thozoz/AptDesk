@@ -136,6 +136,23 @@ class WebServerTest {
     }
 
     @Test
+    fun testHandleFilesOversizedPathRejected() {
+        val longPath = "a".repeat(4097)
+        val resp = sendRequest("GET", "/api/files/$longPath")
+        assertEquals(400, resp.status)
+
+        // Server stays responsive after malformed input
+        val followUp = sendRequest("GET", "/api/files/nonexistent.txt")
+        assertEquals(404, followUp.status)
+    }
+
+    @Test
+    fun testHandleFilesNullByteRejected() {
+        val resp = sendRequest("GET", "/api/files/test%00.txt")
+        assertEquals(400, resp.status)
+    }
+
+    @Test
     fun testHandleSoftwareSearchValidation() {
         // 1. Empty query
         val resp = sendRequest("GET", "/api/software/search", "q=")

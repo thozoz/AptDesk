@@ -3,7 +3,8 @@
 .vscode/
 .claude/
 .gemini/
-
+.planning
+claude*
 # Build artifacts
 docker/*.tar.gz
 docker/*.sha256

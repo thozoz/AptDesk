@@ -256,4 +256,109 @@ class ProotManagerTest {
         // Verify script is interpolated with 1024x768
         assertTrue(startupScript.contains("Xvfb :0 -screen 0 1024x768x24 -ac"))
     }
+
+    @Test
+    fun testVerifyHealthyReturnsFalseWhenNotRunning() {
+        // start() was never called, so process is null / not alive.
+        val capturedCommands = mutableListOf<List<String>>()
+        val mockProcess = mockk<Process>(relaxed = true)
+        setupMockProcessBuilder(mockProcess, capturedCommands = capturedCommands)
+
+        val result = prootManager.verifyHealthy()
+
+        assertEquals(false, result)
+        // Must not invoke executeCommand (no pidof subprocess spawned) when not running.
+        assertTrue(capturedCommands.isEmpty())
+    }
+
+    @Test
+    fun testVerifyHealthyReturnsTrueWhenAllServicesAlive() {
+        rootfsDir.mkdirs()
+
+        val startProcess = mockk<Process>(relaxed = true)
+        every { startProcess.isAlive } returns true
+
+        val capturedCommands = mutableListOf<List<String>>()
+        val startBuilder = mockk<ProcessBuilder>(relaxed = true)
+        every { startBuilder.environment() } returns mutableMapOf()
+        every { startBuilder.redirectErrorStream(any<Boolean>()) } returns startBuilder
+        every { startBuilder.start() } returns startProcess
+
+        // Each pidof call must get its own Process with a fresh, unread inputStream —
+        // a single shared mock's ByteArrayInputStream would be exhausted after the
+        // first executeCommand() readText() call.
+        val pidofBuilder = mockk<ProcessBuilder>(relaxed = true)
+        every { pidofBuilder.environment() } returns mutableMapOf()
+        every { pidofBuilder.redirectErrorStream(any<Boolean>()) } returns pidofBuilder
+        every { pidofBuilder.start() } answers {
+            val proc = mockk<Process>(relaxed = true)
+            every { proc.inputStream } returns "1234".byteInputStream()
+            every { proc.waitFor(any(), any()) } returns true
+            every { proc.isAlive } returns false
+            proc
+        }
+
+        processBuilderFactory = { command ->
+            capturedCommands.add(command)
+            if (command.lastOrNull()?.contains("pidof") == true) pidofBuilder else startBuilder
+        }
+        prootManager = ProotManager(context) { processBuilderFactory(it) }
+        prootManager.start("1280x720")
+
+        val result = prootManager.verifyHealthy()
+
+        assertEquals(true, result)
+        // 3 pidof calls, one per critical service.
+        val pidofCommands = capturedCommands.filter { cmd -> cmd.lastOrNull()?.contains("pidof") == true }
+        assertEquals(3, pidofCommands.size)
+    }
+
+    @Test
+    fun testVerifyHealthyReturnsFalseWhenOneServiceMissing() {
+        rootfsDir.mkdirs()
+
+        val startProcess = mockk<Process>(relaxed = true)
+        every { startProcess.isAlive } returns true
+
+        val startBuilder = mockk<ProcessBuilder>(relaxed = true)
+        every { startBuilder.environment() } returns mutableMapOf()
+        every { startBuilder.redirectErrorStream(any<Boolean>()) } returns startBuilder
+        every { startBuilder.start() } returns startProcess
+
+        // Each pidof call gets its own process: Xvfb and x0vncserver succeed, caddy returns empty.
+        val pidofBuilder = mockk<ProcessBuilder>(relaxed = true)
+        every { pidofBuilder.environment() } returns mutableMapOf()
+        every { pidofBuilder.redirectErrorStream(any<Boolean>()) } returns pidofBuilder
+        every { pidofBuilder.start() } answers {
+            val proc = mockk<Process>(relaxed = true)
+            every { proc.waitFor(any(), any()) } returns true
+            every { proc.isAlive } returns false
+            proc
+        }
+
+        val capturedCommands = mutableListOf<List<String>>()
+        processBuilderFactory = { command ->
+            capturedCommands.add(command)
+            if (command.lastOrNull()?.contains("pidof") == true) pidofBuilder else startBuilder
+        }
+        prootManager = ProotManager(context) { processBuilderFactory(it) }
+        prootManager.start("1280x720")
+
+        // Stub inputStream per call order: Xvfb -> pid, x0vncserver -> pid, caddy -> empty.
+        var callIndex = 0
+        val outputs = listOf("1234", "5678", "")
+        every { pidofBuilder.start() } answers {
+            val output = outputs.getOrElse(callIndex) { "" }
+            callIndex++
+            val proc = mockk<Process>(relaxed = true)
+            every { proc.inputStream } returns output.byteInputStream()
+            every { proc.waitFor(any(), any()) } returns true
+            every { proc.isAlive } returns false
+            proc
+        }
+
+        val result = prootManager.verifyHealthy()
+
+        assertEquals(false, result)
+    }
 }

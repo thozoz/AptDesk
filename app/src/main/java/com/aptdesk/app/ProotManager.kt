@@ -136,6 +136,18 @@ class ProotManager(
 
     fun isRunning(): Boolean = process?.isAlive == true
 
+    /**
+     * Verifies that the critical desktop/VNC/proxy services (Xvfb, x0vncserver, caddy)
+     * are actually alive inside the PRoot chroot, not just that the outer bash wrapper
+     * process is running. This is a single synchronous check — callers needing a bounded
+     * poll/retry window should loop around this method themselves.
+     */
+    fun verifyHealthy(): Boolean {
+        if (!isRunning()) return false
+        val criticalServices = listOf("Xvfb", "x0vncserver", "caddy")
+        return criticalServices.all { svc -> executeCommand("pidof $svc").trim().isNotEmpty() }
+    }
+
     private fun startVirglLogPump(process: Process?) {
         if (process == null) return
         Thread {

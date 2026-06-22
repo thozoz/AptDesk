@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.IOException
 
@@ -25,6 +26,7 @@ class MainService : Service() {
     private val rootfsManager by lazy { RootfsManager(this) }
     private val prootManager by lazy { ProotManager(this) }
     private var webServer: WebServer? = null
+    private val serviceLogic = MainServiceLogic()
     private val notificationManager by lazy {
         getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     }
@@ -46,11 +48,7 @@ class MainService : Service() {
                     stopBackend()
                 }
                 serviceScope.launch {
-                    try {
-                        rootfsManager.resetServices()
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Reset failed", e)
-                    }
+                    serviceLogic.resetLogic { rootfsManager.resetServices() }
                 }
                 return START_NOT_STICKY
             }
@@ -75,7 +73,7 @@ class MainService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun runBackend() {
+    private suspend fun runBackend() {
         try {
             AptDeskState.state.value = AptDeskState.State.StartingBackend
             updateNotification("Starting API server...")
@@ -93,7 +91,28 @@ class MainService : Service() {
             val resolution = prefs.getString("resolution", "1280x720") ?: "1280x720"
             val enableGpu = prefs.getBoolean("enableGpu", true)
             prootManager.start(resolution, enableGpu)
-            
+
+            updateNotification("Verifying services...")
+            var healthy = false
+            for (attempt in 1..HEALTH_CHECK_MAX_ATTEMPTS) {
+                if (prootManager.verifyHealthy()) {
+                    healthy = true
+                    break
+                }
+                if (attempt < HEALTH_CHECK_MAX_ATTEMPTS) {
+                    delay(HEALTH_CHECK_INTERVAL_MS)
+                }
+            }
+            if (!healthy) {
+                Log.e(TAG, "Critical services did not come up within health-check window")
+                updateNotification("Failed: critical services did not start")
+                AptDeskState.state.value = AptDeskState.State.Error(
+                    "Backend started but critical services (Xvfb/x0vncserver/caddy) did not come up"
+                )
+                stopSelf()
+                return
+            }
+
             val ip = NetworkInfo.getLocalIpAddress()
             val url = "http://$ip:8080"
             updateNotification(url)
@@ -107,12 +126,20 @@ class MainService : Service() {
     }
 
     private fun stopBackend() {
-        runningJob?.cancel()
-        runningJob = null
-        prootManager.stop()
-        webServer?.stop()
-        webServer = null
-        AptDeskState.state.value = AptDeskState.State.Idle
+        serviceLogic.stopBackendLogic(
+            cancelJob = {
+                runningJob?.cancel()
+                runningJob = null
+            },
+            stopProot = { prootManager.stop() },
+            stopWebServer = {
+                try {
+                    webServer?.stop()
+                } finally {
+                    webServer = null
+                }
+            }
+        )
     }
 
     private fun updateNotification(content: String) {
@@ -164,5 +191,7 @@ class MainService : Service() {
         private const val CHANNEL_ID = "aptdesk_service"
         private const val NOTIFICATION_ID = 1001
         private const val TAG = "AptDeskService"
+        private const val HEALTH_CHECK_MAX_ATTEMPTS = 5
+        private const val HEALTH_CHECK_INTERVAL_MS = 1000L
     }
 }

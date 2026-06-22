@@ -33,6 +33,8 @@ class RootfsManagerTest {
     companion object {
         private var useMockUrl = false
         private var mockResponseCode = 200
+        private var mockResponseSequence: MutableList<Int>? = null
+        private var mockConnectionFactory: ((URL) -> HttpURLConnection)? = null
 
         @BeforeClass
         @JvmStatic
@@ -43,8 +45,19 @@ class RootfsManagerTest {
                         return if (useMockUrl && (protocol == "http" || protocol == "https")) {
                             object : URLStreamHandler() {
                                 override fun openConnection(u: URL): java.net.URLConnection {
+                                    val factory = mockConnectionFactory
+                                    if (factory != null) {
+                                        return factory(u)
+                                    }
                                     val mockConn = mockk<HttpURLConnection>(relaxed = true)
-                                    every { mockConn.responseCode } answers { mockResponseCode }
+                                    val sequence = mockResponseSequence
+                                    if (sequence != null) {
+                                        every { mockConn.responseCode } answers {
+                                            if (sequence.size > 1) sequence.removeAt(0) else sequence[0]
+                                        }
+                                    } else {
+                                        every { mockConn.responseCode } answers { mockResponseCode }
+                                    }
                                     every { mockConn.inputStream } throws IOException("Mock HTTP Connection Failure")
                                     return mockConn
                                 }
@@ -91,6 +104,8 @@ class RootfsManagerTest {
     @After
     fun tearDown() {
         useMockUrl = false
+        mockResponseSequence = null
+        mockConnectionFactory = null
         unmockkAll()
     }
 
@@ -184,6 +199,102 @@ class RootfsManagerTest {
     }
 
     @Test
+    fun testDownloadRootfsRetryExhaustionAfterMaxAttempts() {
+        useMockUrl = true
+        var attempts = 0
+
+        mockConnectionFactory = { _ ->
+            attempts++
+            val mockConn = mockk<HttpURLConnection>(relaxed = true)
+            every { mockConn.responseCode } returns HttpURLConnection.HTTP_OK
+            every { mockConn.inputStream } throws IOException("Mock HTTP Connection Failure")
+            mockConn
+        }
+
+        try {
+            rootfsManager.ensureRootfs()
+            fail("Should have thrown IOException after exhausting retry attempts")
+        } catch (e: IOException) {
+            assertEquals("Mock HTTP Connection Failure", e.message)
+        }
+
+        assertEquals(3, attempts)
+    }
+
+    @Test
+    fun testDownloadRootfsValidResumeWithPartialContent() {
+        useMockUrl = true
+
+        // Pre-seed a partially downloaded archive in cacheDir to trigger resume logic.
+        val archiveFile = File(cacheDir, "aptdesk-rootfs.tar.gz")
+        archiveFile.writeBytes("partial".toByteArray())
+
+        val capturedRangeHeaders = mutableListOf<String?>()
+        var callCount = 0
+
+        mockConnectionFactory = { _ ->
+            callCount++
+            val mockConn = mockk<HttpURLConnection>(relaxed = true)
+            val remaining = "remainder-data"
+            every { mockConn.setRequestProperty("Range", any()) } answers {
+                capturedRangeHeaders.add(it.invocation.args[1] as String?)
+            }
+            every { mockConn.responseCode } returns HttpURLConnection.HTTP_PARTIAL
+            every { mockConn.contentLength } returns remaining.length
+            every { mockConn.inputStream } returns remaining.byteInputStream()
+            mockConn
+        }
+
+        // Extraction will fail (no real archive), but download must succeed and
+        // resume from existing bytes via the Range header before that point.
+        try {
+            rootfsManager.ensureRootfs()
+        } catch (e: Exception) {
+            // extraction-time failure expected — irrelevant to this test's assertion
+        }
+
+        assertEquals(1, capturedRangeHeaders.size)
+        assertEquals("bytes=7-", capturedRangeHeaders[0])
+    }
+
+    @Test
+    fun testDownloadRootfsRangeIgnoredRestartsFully() {
+        useMockUrl = true
+
+        val archiveFile = File(cacheDir, "aptdesk-rootfs.tar.gz")
+        archiveFile.writeBytes("partial".toByteArray())
+
+        var callCount = 0
+        val fullContent = "full-fresh-content"
+
+        mockConnectionFactory = { _ ->
+            callCount++
+            val mockConn = mockk<HttpURLConnection>(relaxed = true)
+            if (callCount == 1) {
+                // Server ignores Range, returns 200 instead of expected 206 — triggers restart.
+                every { mockConn.responseCode } returns HttpURLConnection.HTTP_OK
+                every { mockConn.contentLength } returns fullContent.length
+                every { mockConn.inputStream } returns fullContent.byteInputStream()
+            } else {
+                // Second attempt (existingBytes == 0 now): plain 200 succeeds.
+                every { mockConn.responseCode } returns HttpURLConnection.HTTP_OK
+                every { mockConn.contentLength } returns fullContent.length
+                every { mockConn.inputStream } returns fullContent.byteInputStream()
+            }
+            mockConn
+        }
+
+        try {
+            rootfsManager.ensureRootfs()
+        } catch (e: Exception) {
+            // extraction-time failure expected — irrelevant to this test's assertion
+        }
+
+        assertEquals(2, callCount)
+        assertEquals(fullContent, archiveFile.readText())
+    }
+
+    @Test
     fun testResetServicesWipesAndPreservesCorrectly() {
         // Create files to wipe
         val dbFile = File(rootfsDir, "var/lib/filebrowser.db").apply { parentFile.mkdirs(); writeText("db") }
@@ -271,5 +382,49 @@ class RootfsManagerTest {
         // Verify symlink call was invoked
         val expectedLinkFile = File(targetDir, "etc/resolv.conf")
         verify { Os.symlink("../tmp/resolv.conf", expectedLinkFile.absolutePath) }
+    }
+
+    @Test
+    fun testEnsureRootfsCorruptArchiveThrowsIOException() {
+        useMockUrl = true
+        val content = "not a valid gzip tarball"
+        mockConnectionFactory = { _ ->
+            val mockConn = mockk<HttpURLConnection>(relaxed = true)
+            every { mockConn.responseCode } returns HttpURLConnection.HTTP_OK
+            every { mockConn.contentLength } returns content.length
+            every { mockConn.inputStream } returns content.byteInputStream()
+            mockConn
+        }
+
+        try {
+            rootfsManager.ensureRootfs()
+            fail("Should have thrown an exception due to corrupt archive")
+        } catch (e: Exception) {
+            // Expected — corrupt tar.gz cannot be extracted
+        }
+    }
+
+    @Test
+    fun testEnsureRootfsCleansUpRootfsDirAfterExtractionFailure() {
+        useMockUrl = true
+        val content = "not a valid gzip tarball"
+        mockConnectionFactory = { _ ->
+            val mockConn = mockk<HttpURLConnection>(relaxed = true)
+            every { mockConn.responseCode } returns HttpURLConnection.HTTP_OK
+            every { mockConn.contentLength } returns content.length
+            every { mockConn.inputStream } returns content.byteInputStream()
+            mockConn
+        }
+
+        // Leave a marker file in rootfsDir prior to the failing extraction so we can
+        // verify it was cleaned up (not left half-populated) after the failure.
+        try {
+            rootfsManager.ensureRootfs()
+            fail("Should have thrown an exception due to corrupt archive")
+        } catch (e: Exception) {
+            // Expected
+        }
+
+        assertFalse(rootfsDir.exists())
     }
 }

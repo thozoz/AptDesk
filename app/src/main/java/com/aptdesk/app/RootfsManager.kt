@@ -37,28 +37,64 @@ class RootfsManager(private val context: Context) {
         val archiveFile = File(context.cacheDir, "aptdesk-rootfs.tar.gz")
         downloadRootfs(rootfsUrl, archiveFile)
         AptDeskState.state.value = AptDeskState.State.ExtractingRootfs
-        extractArchive(archiveFile, rootfsDir)
+        try {
+            extractArchive(archiveFile, rootfsDir)
+        } catch (e: Exception) {
+            try {
+                deleteRecursively(rootfsDir)
+            } catch (cleanupError: Exception) {
+                Log.w(TAG, "Cleanup of rootfsDir failed after extraction error", cleanupError)
+            }
+            throw e
+        }
         readyMarker.writeText("ready")
     }
 
     private fun downloadRootfs(url: String, destination: File) {
+        var attempt = 0
+        val maxAttempts = 3
+        while (true) {
+            try {
+                downloadRootfsAttempt(url, destination)
+                return
+            } catch (e: IOException) {
+                attempt++
+                if (attempt >= maxAttempts) {
+                    throw e
+                }
+                Log.w(TAG, "Download attempt $attempt failed, retrying: ${e.message}")
+            }
+        }
+    }
+
+    private fun downloadRootfsAttempt(url: String, destination: File) {
+        val existingBytes = if (destination.exists()) destination.length() else 0L
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.connectTimeout = 15000
         connection.readTimeout = 30000
         connection.requestMethod = "GET"
         connection.instanceFollowRedirects = true
+        val expectPartial = existingBytes > 0
+        if (expectPartial) {
+            connection.setRequestProperty("Range", "bytes=$existingBytes-")
+        }
 
-        if (connection.responseCode !in 200..299) {
+        val okCode = if (expectPartial) HttpURLConnection.HTTP_PARTIAL else HttpURLConnection.HTTP_OK
+        if (connection.responseCode != okCode) {
+            if (expectPartial && connection.responseCode == HttpURLConnection.HTTP_OK) {
+                destination.delete()
+                throw IOException("Server ignored Range request, restarting")
+            }
             throw IOException("Rootfs download failed: HTTP ${connection.responseCode}")
         }
 
-        val totalLen = connection.contentLength
+        val totalLen = connection.contentLength.toLong() + existingBytes
 
         connection.inputStream.use { input ->
-            FileOutputStream(destination).use { output ->
+            FileOutputStream(destination, expectPartial).use { output ->
                 val buffer = ByteArray(8192)
                 var bytesRead: Int
-                var totalRead = 0L
+                var totalRead = existingBytes
                 while (input.read(buffer).also { bytesRead = it } != -1) {
                     output.write(buffer, 0, bytesRead)
                     totalRead += bytesRead

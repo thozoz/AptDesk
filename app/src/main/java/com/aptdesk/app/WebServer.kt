@@ -396,6 +396,15 @@ class WebServer(
 
     private fun handleFiles(uri: String): Response {
         val path = uri.removePrefix("/api/files").removePrefix("/")
+
+        if (path.length > 4096 || path.contains(' ')) {
+            return newFixedLengthResponse(
+                Response.Status.BAD_REQUEST,
+                MIME_PLAINTEXT,
+                "Invalid path"
+            )
+        }
+
         val target = File(rootfsDir, path)
 
         try {
