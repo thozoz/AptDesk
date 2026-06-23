@@ -258,6 +258,49 @@ class ProotManagerTest {
     }
 
     @Test
+    fun testStartupScriptParallelOrdering() {
+        // PERF-03: Verify X-independent services (ttyd, filebrowser, caddy) launch
+        // BEFORE the X-readiness wait loop, while X-dependent services
+        // (startxfce4, x0vncserver, websockify) launch AFTER it.
+        rootfsDir.mkdirs()
+
+        val mockProcess = mockk<Process>(relaxed = true)
+        every { mockProcess.isAlive } returns true
+
+        val capturedCommands = mutableListOf<List<String>>()
+        setupMockProcessBuilder(mockProcess, capturedCommands = capturedCommands)
+
+        prootManager.start("1280x720")
+
+        val command = capturedCommands[0]
+        val bashIndex = command.indexOf("/bin/bash")
+        val startupScript = command[bashIndex + 2]
+
+        val waitLoopMarker = "for i in {1..40}"
+
+        // X-independent services must appear before the wait loop
+        val ttydIndex = startupScript.indexOf("ttyd -p 8081")
+        val filebrowserIndex = startupScript.indexOf("/opt/aptdesk/www/bin/filebrowser")
+        val caddyIndex = startupScript.indexOf("caddy run")
+        val waitLoopIndex = startupScript.indexOf(waitLoopMarker)
+
+        assertTrue("ttyd should start before X11 readiness wait loop", ttydIndex >= 0 && ttydIndex < waitLoopIndex)
+        assertTrue("filebrowser should start before X11 readiness wait loop", filebrowserIndex >= 0 && filebrowserIndex < waitLoopIndex)
+        assertTrue("caddy should start before X11 readiness wait loop", caddyIndex >= 0 && caddyIndex < waitLoopIndex)
+
+        // X-dependent services must appear after the wait loop
+        // Use the actual launch command (with unique args) to avoid matching
+        // comment text, e.g. the "# X-dependent services (startxfce4/...)" line.
+        val xfceIndex = startupScript.indexOf("startxfce4 >")
+        val x0vncIndex = startupScript.indexOf("x0vncserver -display")
+        val websockifyIndex = startupScript.indexOf("websockify --web")
+
+        assertTrue("startxfce4 should start after X11 readiness wait loop", xfceIndex > waitLoopIndex)
+        assertTrue("x0vncserver should start after X11 readiness wait loop", x0vncIndex > waitLoopIndex)
+        assertTrue("websockify should start after X11 readiness wait loop", websockifyIndex > waitLoopIndex)
+    }
+
+    @Test
     fun testVerifyHealthyReturnsFalseWhenNotRunning() {
         // start() was never called, so process is null / not alive.
         val capturedCommands = mutableListOf<List<String>>()
