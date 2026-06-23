@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simple monitor/desktop glyph in the inner ~72dp safe zone of a 108dp adaptive icon.
+     Placeholder mark; final brand art deferred (D-02). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Screen body -->
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M30,34 h48 a4,4 0 0 1 4,4 v28 a4,4 0 0 1 -4,4 h-48 a4,4 0 0 1 -4,-4 v-28 a4,4 0 0 1 4,-4 z" />
+    <!-- Inner screen -->
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M31,39 h46 v26 h-46 z" />
+    <!-- Stand neck -->
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M50,70 h8 v6 h-8 z" />
+    <!-- Stand base -->
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M40,76 h28 a2,2 0 0 1 2,2 v2 a2,2 0 0 1 -2,2 h-28 a2,2 0 0 1 -2,-2 v-2 a2,2 0 0 1 2,-2 z" />
+</vector>

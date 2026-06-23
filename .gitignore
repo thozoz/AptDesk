@@ -17,3 +17,8 @@ app/build/
 .gradle/
 local.properties
 temp
+
+# Signing secrets — never commit
+keystore.properties
+*.jks
+*.keystore
