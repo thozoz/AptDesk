@@ -3,6 +3,7 @@
 let termLoaded = false;
 let vncLoaded = false;
 let filesLoaded = false;
+let lastBackendState = "idle";
 
 const STEP_ORDER = ['downloading_rootfs', 'extracting_rootfs', 'copying_assets', 'starting_backend', 'running'];
 
@@ -62,13 +63,13 @@ function initDashboard() {
 
   if (connectDesktopBtn) {
     connectDesktopBtn.addEventListener("click", () => {
-      setActiveTab("desktop");
+      setActiveTab("desktop", true);
     });
   }
 
   if (openTerminalBtn) {
     openTerminalBtn.addEventListener("click", () => {
-      setActiveTab("terminal");
+      setActiveTab("terminal", true);
     });
   }
 
@@ -161,7 +162,7 @@ function initDashboard() {
   document.querySelectorAll(".connect-now-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const tab = btn.dataset.tab;
-      if (tab) loadTabIframe(tab);
+      if (tab) loadTabIframe(tab, true);
     });
   });
 
@@ -206,14 +207,24 @@ function setupTabs() {
   }, 500);
 }
 
-function loadTabIframe(tab) {
+function loadTabIframe(tab, force) {
+  // Auto path is gated on a running backend; an explicit user action (force)
+  // always attempts to connect so the Connect / Connect Now buttons never dead-end.
+  if (!force && lastBackendState !== "running") {
+    return;
+  }
+
   let iframeId;
+  let isLoaded = false;
   if (tab === "desktop") {
     iframeId = "vnc-iframe";
+    isLoaded = vncLoaded;
   } else if (tab === "terminal") {
     iframeId = "term-iframe";
+    isLoaded = termLoaded;
   } else if (tab === "files") {
     iframeId = "files-iframe";
+    isLoaded = filesLoaded;
   } else {
     iframeId = `iframe-${tab}`;
   }
@@ -221,8 +232,13 @@ function loadTabIframe(tab) {
 
   if (!iframe) return;
 
-  // Don't reload if already loaded
-  if (iframe.src && iframe.src.length > 0) return;
+  // Don't reload if already loaded — unless the user explicitly forced a retry.
+  if (isLoaded && !force) return;
+
+  // Set the loaded flag to true
+  if (tab === "desktop") vncLoaded = true;
+  else if (tab === "terminal") termLoaded = true;
+  else if (tab === "files") filesLoaded = true;
 
   const notConnected = document.querySelector(`[data-notconnected-for="${tab}"]`);
   const loadingOverlay = document.querySelector(`[data-loading-for="${tab}"]`);
@@ -237,8 +253,13 @@ function loadTabIframe(tab) {
     });
     iframe.addEventListener("error", () => {
       if (loadingOverlay) loadingOverlay.hidden = true;
+      // Reset loaded flag so they can retry
+      if (tab === "desktop") vncLoaded = false;
+      else if (tab === "terminal") termLoaded = false;
+      else if (tab === "files") filesLoaded = false;
+
       showErrorBanner(tab, "Service connection failed. Could not load the " + tab + ".", () => {
-        iframe.src = iframe.src;
+        loadTabIframe(tab, true);
       });
     });
   }
@@ -268,7 +289,10 @@ function loadTabIframe(tab) {
   }
 }
 
-function setActiveTab(tab) {
+// Global debounce timer for tab switches to prevent memory leaks and duplicate triggers
+let activeTabDebounceTimer = null;
+
+function setActiveTab(tab, force) {
   // Update active state of buttons
   document.querySelectorAll(".tree-item, .tab-button").forEach((item) => {
     item.classList.toggle("active", item.getAttribute("data-tab") === tab);
@@ -279,10 +303,14 @@ function setActiveTab(tab) {
     panel.classList.toggle("active", panel.getAttribute("data-tab") === tab);
   });
 
-  // Load iframe for the tab (debounced)
-  let debounceTimer;
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => loadTabIframe(tab), 100);
+  // Load iframe for the tab (debounced). A forced switch (explicit Connect
+  // button) loads regardless of backend_state; plain tab nav stays gated.
+  clearTimeout(activeTabDebounceTimer);
+  activeTabDebounceTimer = setTimeout(() => {
+    if (force || lastBackendState === "running") {
+      loadTabIframe(tab, force);
+    }
+  }, 100);
 }
 
 // Removed old mock renderFiles()
@@ -499,6 +527,52 @@ function updateStatus() {
     const stamp = document.getElementById("statusTimestamp");
     if (stamp) {
       stamp.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+    }
+
+    lastBackendState = status.backend_state || "idle";
+
+    if (lastBackendState === "running") {
+      // Automatically load the active tab's iframe if it isn't loaded yet
+      const activeTabButton = document.querySelector(".tab-button.active");
+      const activeTab = activeTabButton ? activeTabButton.getAttribute("data-tab") : "desktop";
+      if (activeTab === "desktop" && !vncLoaded) {
+        loadTabIframe("desktop");
+      } else if (activeTab === "terminal" && !termLoaded) {
+        loadTabIframe("terminal");
+      } else if (activeTab === "files" && !filesLoaded) {
+        loadTabIframe("files");
+      }
+    } else {
+      // Reset loaded flags
+      vncLoaded = false;
+      termLoaded = false;
+      filesLoaded = false;
+
+      // Clear iframe sources and restore empty states
+      ["desktop", "terminal", "files"].forEach((tab) => {
+        const iframeId = tab === "desktop" ? "vnc-iframe" : (tab === "terminal" ? "term-iframe" : "files-iframe");
+        const iframe = document.getElementById(iframeId);
+        if (iframe && iframe.src && iframe.src !== "") {
+          iframe.src = "";
+        }
+        const notConnected = document.querySelector(`[data-notconnected-for="${tab}"]`);
+        const loadingOverlay = document.querySelector(`[data-loading-for="${tab}"]`);
+        if (notConnected) notConnected.hidden = false;
+        if (loadingOverlay) loadingOverlay.hidden = true;
+
+        // Update badge/status in UI
+        const badge = document.querySelector(`#tab-${tab} .badge`);
+        const statusText = document.querySelector(`#tab-${tab} .status-text`);
+        if (badge) {
+          badge.className = "badge badge-warning";
+          badge.textContent = "Idle";
+        }
+        if (statusText) {
+          if (tab === "desktop") statusText.textContent = "noVNC placeholder reserved for remote display.";
+          else if (tab === "terminal") statusText.textContent = "xterm.js placeholder reserved for interactive shell.";
+          else if (tab === "files") statusText.textContent = "File browser placeholder.";
+        }
+      });
     }
 
     updateProgressBar(status.backend_state, status.progress, status.error);
