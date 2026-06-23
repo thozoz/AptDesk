@@ -4,6 +4,13 @@
   box-sizing: border-box;
 }
 
+/* The [hidden] attribute must win over component display rules
+   (.empty-state/.iframe-loading set display:flex, which otherwise
+   keeps overlays visible after element.hidden = true). */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
