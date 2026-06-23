@@ -279,6 +279,10 @@ class WebServerTest {
         val json = JSONObject(resp.body)
         assertEquals("error", json.getString("backend_state"))
         assertTrue(json.isNull("progress"))
+
+        // Error body must not leak the raw exception message to the client
+        assertEquals("Internal error", json.getString("error"))
+        assertFalse(json.toString().contains("boom"))
     }
 
     @Test
@@ -287,12 +291,34 @@ class WebServerTest {
         val resp1 = sendRequest("GET", "/api/restart")
         assertEquals(405, resp1.status)
 
-        // 2. POST triggers stop and start
-        val resp2 = sendRequest("POST", "/api/restart")
+        // 2. POST triggers stop and start (explicit valid resolution: the relaxed
+        // context mock's SharedPreferences.getString does not honor the default
+        // parameter, so omitting resolution here would hit the new validation gate)
+        val resp2 = sendRequest("POST", "/api/restart", "resolution=1280x720")
         assertEquals(200, resp2.status)
         assertEquals("""{"status":"restarted"}""", resp2.body)
 
         verify { prootManager.stop() }
         verify { prootManager.start(any(), any()) }
+    }
+
+    @Test
+    fun testRestartRejectsMaliciousResolution() {
+        val resp = sendRequest("POST", "/api/restart", "resolution=1x1%20-ac%20%26%20id%20%23")
+        assertEquals(400, resp.status)
+        assertTrue(resp.body.contains("Invalid resolution"))
+
+        verify(exactly = 0) { prootManager.start(any(), any()) }
+        verify(exactly = 0) { prootManager.stop() }
+    }
+
+    @Test
+    fun testRestartAcceptsValidResolution() {
+        val resp = sendRequest("POST", "/api/restart", "resolution=1280x720")
+        assertEquals(200, resp.status)
+        assertEquals("""{"status":"restarted"}""", resp.body)
+
+        verify { prootManager.stop() }
+        verify { prootManager.start("1280x720", any()) }
     }
 }

@@ -93,7 +93,7 @@ class WebServer(
                 put("status", "error")
                 put("backend_state", "error")
                 put("progress", JSONObject.NULL)
-                put("error", e.message)
+                put("error", "Internal error")
             }
             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", fallback.toString())
         }
@@ -243,7 +243,8 @@ class WebServer(
                 put("log", output)
             }.toString())
         } catch (e: Exception) {
-            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"${e.message}\"}")
+            Log.e("AptDeskWebServer", "Error in handleSoftwareAction", e)
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"Internal error\"}")
         }
     }
 
@@ -255,7 +256,8 @@ class WebServer(
             prootManager.executeCommand("rm -f /var/lib/filebrowser.db")
             newFixedLengthResponse(Response.Status.OK, "application/json", """{"success":true}""")
         } catch (e: Exception) {
-            newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", """{"error":"${e.message}"}""")
+            Log.e("AptDeskWebServer", "Error in handleFixFilebrowser", e)
+            newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", """{"error":"Internal error"}""")
         }
     }
 
@@ -278,12 +280,20 @@ class WebServer(
             val prefs = context.getSharedPreferences("aptdesk_prefs", Context.MODE_PRIVATE)
             val resolution = params["resolution"]?.firstOrNull() ?: prefs.getString("resolution", "1280x720") ?: "1280x720"
             val enableGpu = params["enableGpu"]?.firstOrNull()?.toBoolean() ?: prefs.getBoolean("enableGpu", true)
-            
+
+            if (!resolution.matches(Regex("^[0-9]{2,4}x[0-9]{2,4}$"))) {
+                return newFixedLengthResponse(
+                    Response.Status.BAD_REQUEST,
+                    "application/json",
+                    """{"error":"Invalid resolution"}"""
+                )
+            }
+
             prefs.edit()
                 .putString("resolution", resolution)
                 .putBoolean("enableGpu", enableGpu)
                 .apply()
-            
+
             prootManager.stop()
             prootManager.start(resolution, enableGpu)
             return newFixedLengthResponse(
@@ -292,10 +302,11 @@ class WebServer(
                 """{"status":"restarted"}"""
             )
         } catch (e: Exception) {
+             Log.e("AptDeskWebServer", "Error in handleRestart", e)
              return newFixedLengthResponse(
                 Response.Status.INTERNAL_ERROR,
                 "application/json",
-                """{"error":"${e.message}"}"""
+                """{"error":"Internal error"}"""
              )
         }
     }
@@ -309,8 +320,9 @@ class WebServer(
                 put("log", output.takeLast(2000))
             }.toString())
         } catch (e: Exception) {
+            Log.e("AptDeskWebServer", "Error in handleSoftwareUpdate", e)
             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json",
-                """{"success":false,"log":"${e.message}"}""")
+                """{"success":false,"log":"Internal error"}""")
         }
     }
 

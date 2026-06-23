@@ -58,6 +58,10 @@ android {
             // which Android cannot execute. useLegacyPackaging=true extracts them to disk
             // so the OS can set the executable bit (W^X rule, API 29+).
             useLegacyPackaging = true
+            // App is ARM64-only; ProotManager.kt only ever loads libproot-loader.so
+            // (the 64-bit loader). The bundled 32-bit loader has no code path that
+            // references it, so it is excluded from packaging to trim APK size.
+            excludes += "lib/*/libproot-loader32.so"
         }
     }
     testOptions {
@@ -78,7 +82,7 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-    implementation("org.apache.commons:commons-compress:1.26.2")
+    implementation("org.apache.commons:commons-compress:1.27.1")
     implementation("org.nanohttpd:nanohttpd:2.3.1")
     // Provides Theme.Material3.DayNight.NoActionBar used in themes.xml
     implementation("com.google.android.material:material:1.12.0")

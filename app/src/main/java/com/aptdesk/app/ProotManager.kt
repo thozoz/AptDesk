@@ -244,11 +244,26 @@ class ProotManager(
         echo "127.0.0.1 localhost $(hostname 2>/dev/null || echo aptdesk)" > /etc/hosts
 
         Xvfb :0 -screen 0 ${resolution}x24 -ac &
-        
-        # Wait up to 10 seconds for X11 to start (20 * 0.5s)
-        for i in {1..20}; do
+
+        # X-independent services do not need to wait on X11 readiness, so start
+        # them now in parallel with the Xvfb boot/poll below instead of serially
+        # after it. This shortens wall-clock time-to-healthy without affecting
+        # X-dependent service ordering (startxfce4/x0vncserver/websockify still
+        # wait for the X readiness loop further down).
+        ttyd -p 8081 /bin/bash >/var/log/ttyd.log 2>&1 &
+
+        chmod +x /opt/aptdesk/www/bin/filebrowser
+        /opt/aptdesk/www/bin/filebrowser -b /filesapp -p 8083 -r / -d /var/lib/filebrowser.db -a 127.0.0.1 --noauth >/var/log/filebrowser.log 2>&1 &
+
+        # Strip Windows CRLF from Caddyfile before parsing, then start caddy
+        sed -i 's/\r//' /opt/aptdesk/Caddyfile
+        caddy run --config /opt/aptdesk/Caddyfile >/var/log/caddy.log 2>&1 &
+
+        # Wait up to 10 seconds for X11 to start (40 * 0.25s) - tighter poll
+        # granularity than the previous 0.5s step to detect readiness sooner.
+        for i in {1..40}; do
             xdpyinfo -display :0 >/dev/null 2>&1 && break
-            sleep 0.5
+            sleep 0.25
         done
 
         # Pre-configure XFCE to disable compositing before starting to prevent GPU window/border glitches in VNC/Xvfb
@@ -268,16 +283,6 @@ EOF
         startxfce4 >/var/log/xfce.log 2>&1 &
         x0vncserver -display :0 -rfbport 5900 -SecurityTypes None >/var/log/x0vncserver.log 2>&1 &
         websockify --web=/opt/aptdesk/www/libs/novnc 5901 127.0.0.1:5900 &
-        ttyd -p 8081 /bin/bash >/var/log/ttyd.log 2>&1 &
-        
-        # Start filebrowser
-        chmod +x /opt/aptdesk/www/bin/filebrowser
-        
-        /opt/aptdesk/www/bin/filebrowser -b /filesapp -p 8083 -r / -d /var/lib/filebrowser.db -a 127.0.0.1 --noauth >/var/log/filebrowser.log 2>&1 &
-        
-        # Strip Windows CRLF from Caddyfile before parsing
-        sed -i 's/\r//' /opt/aptdesk/Caddyfile
-        caddy run --config /opt/aptdesk/Caddyfile >/var/log/caddy.log 2>&1 &
 
         wait
     """.trimIndent()

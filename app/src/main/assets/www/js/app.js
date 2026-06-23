@@ -165,10 +165,27 @@ function initDashboard() {
     });
   });
 
-  setInterval(() => {
-    updateStatus();
-    renderSessions();
-  }, 5000);
+  // PERF-04: gate the poll loop on page visibility — backgrounded tabs should
+  // not keep hitting /api/status and /api/sessions (each /api/sessions poll
+  // triggers up to 3 PRoot `pidof` spawns server-side). Guard against
+  // overlapping in-flight polls so a slow response doesn't stack requests.
+  let pollInFlight = false;
+  function pollTick() {
+    if (document.hidden || pollInFlight) return;
+    pollInFlight = true;
+    Promise.allSettled([updateStatus(), renderSessions()]).finally(() => {
+      pollInFlight = false;
+    });
+  }
+  setInterval(pollTick, 5000);
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      // Becoming visible again — refresh immediately so the UI isn't stale,
+      // then resume the normal 5s cadence via the existing interval.
+      pollTick();
+    }
+  });
 }
 
 function setupTabs() {
@@ -427,9 +444,9 @@ function renderSoftware(searchQuery = null) {
 function renderSessions() {
   const list = document.getElementById("sessions-list");
   const empty = document.querySelector('[data-empty-for="sessions"]');
-  if (!list) return;
+  if (!list) return Promise.resolve();
 
-  fetchSessions().then((sessions) => {
+  return fetchSessions().then((sessions) => {
     const active = Array.isArray(sessions) ? sessions.filter((s) => s.status === "Active") : [];
     if (active.length === 0) {
       list.innerHTML = "";
@@ -444,7 +461,7 @@ function renderSessions() {
 }
 
 function updateStatus() {
-  fetchStatus().then((status) => {
+  return fetchStatus().then((status) => {
     if (status.status === "error") {
       setStatText("cpu", `Error`);
       setStatText("ram", `API Error`);
