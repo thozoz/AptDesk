@@ -1,18 +1,31 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
 
+// Release signing secrets live in an untracked keystore.properties at the repo root
+// (see keystore.properties.example). When absent (debug/CI without a keystore), the
+// release build still configures cleanly and is simply left unsigned.
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        load(FileInputStream(keystorePropertiesFile))
+    }
+}
+
 android {
     namespace = "com.aptdesk.app"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.aptdesk.app"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 2
-        versionName = "0.2.0"
+        targetSdk = 35
+        versionCode = 3
+        versionName = "0.3.0"
 
         buildConfigField(
             "String",
@@ -39,13 +52,30 @@ android {
         kotlinCompilerExtensionVersion = "1.5.14"
     }
 
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // D-01: keep R8/minify OFF — it risks stripping PRoot JNI / native loaders /
+            // reflection classes; APK size is dominated by .so libs R8 cannot shrink.
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Sign only when a local keystore is present so keystore-less builds still configure.
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
