@@ -166,7 +166,7 @@ code {
   padding: 8px 10px;
   border: 1px solid #2a2e36;
   background: #15181f;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 .toolbar-meta {
@@ -452,3 +452,266 @@ code {
 .setting-item label { font-size: 12px; color: #9aa3b2; }
 .setting-item select, .setting-item input[type="checkbox"] { cursor: pointer; }
 .setting-item .primary-button, .setting-item .ghost-button { width: fit-content; }
+.setting-select { width: 100%; padding: 8px; margin-top: 4px; }
+
+/* ── Extracted inline styles (UX-05) ───────────────────────────── */
+.panel-iframe-wrap {
+  position: relative;
+  padding: 0;
+  background: #000;
+  overflow: hidden;
+}
+.service-iframe {
+  width: 100%;
+  height: 600px;
+  border: none;
+  display: block;
+}
+.service-iframe--tall {
+  height: calc(100vh - 140px);
+}
+.search-input {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.3);
+  color: #e3e6eb;
+}
+
+/* ── Staged startup progress bar (UX-03, D-02/D-03/D-04) ────────── */
+.progress-bar {
+  background: #13161c;
+  border-bottom: 1px solid #262a31;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.progress-bar--fadeout {
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+}
+.progress-bar.error {
+  border-color: rgba(244, 67, 54, 0.3);
+  background: rgba(244, 67, 54, 0.05);
+}
+.progress-steps {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+.step-pip {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #232731;
+  background: transparent;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  line-height: 1;
+}
+.step-connector {
+  width: 48px;
+  height: 2px;
+  background: #232731;
+  transition: background 0.3s ease;
+  margin: 0 4px;
+  align-self: flex-start;
+  margin-top: 6px;
+}
+.step-label {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: #7f8796;
+  transition: color 0.3s ease;
+}
+.progress-step.future .step-pip {
+  background: transparent;
+  border-color: #232731;
+}
+.progress-step.future .step-label {
+  color: #7f8796;
+}
+.progress-step.active .step-pip {
+  background: #1f2e3f;
+  border-color: #7db9ff;
+  animation: pulse-pip 1s ease-in-out infinite;
+}
+.progress-step.active .step-label {
+  color: #7db9ff;
+}
+.progress-step.completed .step-pip {
+  background: #1f3b2b;
+  border-color: #7de0a4;
+}
+.progress-step.completed .step-pip::after {
+  content: "\2713";
+  color: #7de0a4;
+}
+.progress-step.completed .step-label {
+  color: #7de0a4;
+}
+.progress-step.error .step-pip {
+  background: #3b1f1f;
+  border-color: #e67c7c;
+}
+.progress-step.error .step-pip::after {
+  content: "!";
+  color: #e67c7c;
+}
+.progress-step.error .step-label {
+  color: #e67c7c;
+}
+.progress-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #e67c7c;
+  font-size: 13px;
+  padding-top: 4px;
+}
+.progress-error-text {
+  flex: 1;
+}
+@keyframes pulse-pip {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ── Inline error/success banners (UX-04) ──────────────────────── */
+.error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: rgba(244, 67, 54, 0.08);
+  border: 1px solid rgba(244, 67, 54, 0.25);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: #e67c7c;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+.error-banner-text {
+  flex: 1;
+  font-size: 13px;
+  color: #e67c7c;
+  line-height: 1.5;
+}
+.error-retry-btn {
+  color: #e67c7c;
+  border-color: rgba(244, 67, 54, 0.3);
+}
+.success-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: rgba(125, 224, 164, 0.08);
+  border: 1px solid rgba(125, 224, 164, 0.25);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: #7de0a4;
+  font-size: 13px;
+  margin: 0 16px 12px;
+}
+.success-banner-text {
+  flex: 1;
+  color: #7de0a4;
+  font-size: 13px;
+}
+
+/* ── Empty states (UX-01) ──────────────────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  text-align: center;
+}
+.empty-state-heading {
+  font-size: 12px;
+  color: #7f8796;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.empty-state-body {
+  font-size: 13px;
+  color: #9aa3b2;
+}
+.empty-state--connect {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 17, 21, 0.95);
+  z-index: 10;
+}
+.empty-state--connect .connect-now-btn {
+  margin-top: 12px;
+}
+
+/* ── Loading states (UX-02) ────────────────────────────────────── */
+.iframe-loading {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 17, 21, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+.iframe-loading-text {
+  font-size: 13px;
+  color: #9aa3b2;
+  white-space: nowrap;
+}
+.loading-row {
+  text-align: center;
+  color: #9aa3b2;
+}
+.loading-dots::after {
+  content: "...";
+  animation: loading-dots 1.4s ease-in-out infinite;
+}
+@keyframes loading-dots {
+  0%, 20% { opacity: 0; }
+  50% { opacity: 1; }
+  80%, 100% { opacity: 0; }
+}
+
+/* ── Sessions list ─────────────────────────────────────────────── */
+.sessions-panel {
+  margin-top: 12px;
+}
+.sessions-panel h4 {
+  margin: 0 0 12px;
+}
+.sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.session-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 13px;
+  color: #e3e6eb;
+}

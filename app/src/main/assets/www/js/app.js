@@ -4,6 +4,8 @@ let termLoaded = false;
 let vncLoaded = false;
 let filesLoaded = false;
 
+const STEP_ORDER = ['downloading_rootfs', 'extracting_rootfs', 'copying_assets', 'starting_backend', 'running'];
+
 document.addEventListener("DOMContentLoaded", () => {
   const page = document.body.dataset.page;
   if (page === "login") {
@@ -92,15 +94,15 @@ function initDashboard() {
           .then(res => res.json())
           .then(data => {
             if (data.success) {
-              alert("Database wiped! Please restart the backend to apply changes.");
+              showGlobalSuccess("Filebrowser database wiped successfully. Restart the backend to apply changes.", 5000);
             } else {
-              alert("Error: " + data.error);
+              showErrorBanner("files", "Could not reset filebrowser database: " + data.error, () => fixFilebrowserBtn.click());
             }
             fixFilebrowserBtn.textContent = "Reset Auth DB";
             fixFilebrowserBtn.disabled = false;
           })
           .catch(err => {
-            alert("Error: " + err);
+            showErrorBanner("files", "Connection error: " + err, () => fixFilebrowserBtn.click());
             fixFilebrowserBtn.textContent = "Reset Auth DB";
             fixFilebrowserBtn.disabled = false;
           });
@@ -132,15 +134,36 @@ function initDashboard() {
       fetch("/api/software/update").then(r => r.json()).then(data => {
         softwareUpdateBtn.textContent = "Update";
         softwareUpdateBtn.disabled = false;
-        alert(data.success ? "Update completed" : "Update failed:\n" + (data.log || ""));
-        if (data.success) renderSoftware(document.getElementById("softwareSearchInput")?.value || null);
+        if (data.success) {
+          showGlobalSuccess("Update completed", 5000);
+          renderSoftware(document.getElementById("softwareSearchInput")?.value || null);
+        } else {
+          showErrorBanner("software", "Package update failed: " + (data.log || ""), () => softwareUpdateBtn.click());
+        }
       }).catch(() => {
         softwareUpdateBtn.textContent = "Update";
         softwareUpdateBtn.disabled = false;
-        alert("Connection error");
+        showErrorBanner("software", "Connection error while updating packages", () => softwareUpdateBtn.click());
       });
     });
   }
+
+  const retryBtn = document.getElementById("retryBtn");
+  if (retryBtn) {
+    retryBtn.addEventListener("click", () => {
+      // User explicitly opted in by clicking Retry on a visible error — no confirm().
+      fetch("/api/restart", { method: "POST" })
+        .then(() => updateStatus())
+        .catch(() => updateStatus());
+    });
+  }
+
+  document.querySelectorAll(".connect-now-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tab = btn.dataset.tab;
+      if (tab) loadTabIframe(tab);
+    });
+  });
 
   setInterval(() => {
     updateStatus();
@@ -183,6 +206,25 @@ function loadTabIframe(tab) {
 
   // Don't reload if already loaded
   if (iframe.src && iframe.src.length > 0) return;
+
+  const notConnected = document.querySelector(`[data-notconnected-for="${tab}"]`);
+  const loadingOverlay = document.querySelector(`[data-loading-for="${tab}"]`);
+  if (notConnected) notConnected.hidden = true;
+  if (loadingOverlay) loadingOverlay.hidden = false;
+
+  // Attach load/error handlers once per iframe.
+  if (!iframe.dataset.overlayWired) {
+    iframe.dataset.overlayWired = "true";
+    iframe.addEventListener("load", () => {
+      if (loadingOverlay) loadingOverlay.hidden = true;
+    });
+    iframe.addEventListener("error", () => {
+      if (loadingOverlay) loadingOverlay.hidden = true;
+      showErrorBanner(tab, "Service connection failed. Could not load the " + tab + ".", () => {
+        iframe.src = iframe.src;
+      });
+    });
+  }
 
   switch(tab) {
     case "desktop":
@@ -241,7 +283,7 @@ function showSettingsModal() {
         
         <div class="setting-item">
           <label for="resolution">Display Resolution:</label>
-          <select id="resolution" style="width: 100%; padding: 8px; margin-top: 4px;">
+          <select id="resolution" class="setting-select">
             <option value="1280x720" ${savedResolution === '1280x720' ? 'selected' : ''}>1280x720 (HD)</option>
             <option value="1920x1080" ${savedResolution === '1920x1080' ? 'selected' : ''}>1920x1080 (Full HD)</option>
             <option value="2560x1440" ${savedResolution === '2560x1440' ? 'selected' : ''}>2560x1440 (QHD)</option>
@@ -311,7 +353,7 @@ function showSettingsModal() {
           .then(res => res.json())
           .then(data => {
             if (data.status === 'restarted') {
-              alert('Container successfully restarted with new settings!');
+              showGlobalSuccess('Backend restarted with new settings', 5000);
               const iframe = document.getElementById('vnc-iframe');
               if (iframe) {
                 iframe.src = ""; // reset src to reload
@@ -320,15 +362,15 @@ function showSettingsModal() {
                 }, 1000);
               }
             } else {
-              alert('Failed to restart container: ' + (data.error || 'Unknown error'));
+              showErrorBanner("software", 'Could not restart backend: ' + (data.error || 'Unknown error'), () => saveBtn.click());
             }
           })
           .catch(err => {
-            alert('Error connecting to API server to restart: ' + err);
+            showErrorBanner("software", 'Connection error: ' + err, () => saveBtn.click());
           });
         }
       } else {
-        alert('Settings saved!');
+        showGlobalSuccess('Settings saved', 3000);
       }
     });
   }
@@ -340,7 +382,7 @@ function renderSoftware(searchQuery = null) {
     return;
   }
   
-  tableBody.innerHTML = `<tr><td colspan="4" style="text-align:center;">Loading...</td></tr>`;
+  tableBody.innerHTML = `<tr><td colspan="4" class="loading-row"><span class="loading-dots">Loading</span></td></tr>`;
 
   let fetchPromise;
   if (searchQuery) {
@@ -353,8 +395,9 @@ function renderSoftware(searchQuery = null) {
     .then(res => res.json())
     .then((packages) => {
       tableBody.innerHTML = "";
+      hideErrorBanner("software");
       if (packages.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="4" style="text-align:center;">No packages found.</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="4" class="loading-row">No packages found.</td></tr>`;
         return;
       }
       
@@ -376,13 +419,28 @@ function renderSoftware(searchQuery = null) {
       });
     })
     .catch(err => {
-      tableBody.innerHTML = `<tr><td colspan="4" style="text-align:center; color: #f44336;">Error loading packages</td></tr>`;
+      tableBody.innerHTML = `<tr><td colspan="4" class="loading-row">Error loading packages</td></tr>`;
+      showErrorBanner("software", "Could not load package list", () => renderSoftware(searchQuery));
     });
 }
 
-// sessionTable doesn't exist in dashboard.html, so we'll just log
 function renderSessions() {
-  console.log('Sessions:', fetchSessions());
+  const list = document.getElementById("sessions-list");
+  const empty = document.querySelector('[data-empty-for="sessions"]');
+  if (!list) return;
+
+  fetchSessions().then((sessions) => {
+    const active = Array.isArray(sessions) ? sessions.filter((s) => s.status === "Active") : [];
+    if (active.length === 0) {
+      list.innerHTML = "";
+      if (empty) empty.hidden = false;
+      return;
+    }
+    if (empty) empty.hidden = true;
+    list.innerHTML = active
+      .map((s) => `<div class="session-row"><span>${s.name}</span><span class="badge badge-${s.badge || "neutral"}">${s.status}</span></div>`)
+      .join("");
+  });
 }
 
 function updateStatus() {
@@ -425,12 +483,137 @@ function updateStatus() {
     if (stamp) {
       stamp.textContent = `Updated ${new Date().toLocaleTimeString()}`;
     }
+
+    updateProgressBar(status.backend_state, status.progress, status.error);
+    updateEmptyStates(status.backend_state);
   });
+}
+
+function updateProgressBar(backendState, progress, errorMessage) {
+  const bar = document.getElementById("startup-progress");
+  if (!bar) return;
+
+  const currentIndex = STEP_ORDER.indexOf(backendState);
+  const isError = backendState === "error";
+
+  STEP_ORDER.forEach((step, index) => {
+    const el = bar.querySelector(`[data-step="${step}"]`);
+    if (!el) return;
+    el.classList.remove("future", "active", "completed", "error");
+    if (currentIndex === -1) {
+      // idle or unknown: everything future
+      el.classList.add("future");
+    } else if (index < currentIndex) {
+      el.classList.add("completed");
+    } else if (index === currentIndex) {
+      el.classList.add("active");
+    } else {
+      el.classList.add("future");
+    }
+  });
+
+  const errorRow = bar.querySelector(".progress-error");
+  const errorText = bar.querySelector(".progress-error-text");
+  if (isError) {
+    // Mark the last active step (or the first step if none) as error.
+    bar.classList.add("error");
+    const activeStep = bar.querySelector(".progress-step.active") || bar.querySelector(".progress-step");
+    if (activeStep) {
+      activeStep.classList.remove("future", "active", "completed");
+      activeStep.classList.add("error");
+    }
+    if (errorRow) errorRow.hidden = false;
+    if (errorText) errorText.textContent = errorMessage || "Startup failed.";
+  } else {
+    bar.classList.remove("error");
+    if (errorRow) errorRow.hidden = true;
+  }
+
+  // Fade out once running; restore visibility for any other state.
+  if (backendState === "running") {
+    bar.classList.add("progress-bar--fadeout");
+    setTimeout(() => {
+      // Only hide if still running (avoid hiding after a regression to error).
+      if (bar.classList.contains("progress-bar--fadeout")) {
+        bar.style.display = "none";
+      }
+    }, 600);
+  } else {
+    bar.classList.remove("progress-bar--fadeout");
+    bar.style.display = "";
+  }
 }
 
 function setStatText(stat, value) {
   document.querySelectorAll(`[data-stat="${stat}"]`).forEach((element) => {
     element.textContent = value;
+  });
+}
+
+// ── Inline banner helpers (UX-04) ──────────────────────────────────
+let globalBannerTimer = null;
+
+function showErrorBanner(context, message, retryFn) {
+  const banner = document.querySelector(`[data-error-for="${context}"]`);
+  if (!banner) return;
+  const text = banner.querySelector(".error-banner-text");
+  if (text) text.textContent = message;
+  const btn = banner.querySelector(".error-retry-btn");
+  if (btn) {
+    // Clone+replace to drop any previously-attached retry handler.
+    const fresh = btn.cloneNode(true);
+    btn.parentNode.replaceChild(fresh, btn);
+    fresh.addEventListener("click", () => {
+      hideErrorBanner(context);
+      if (typeof retryFn === "function") retryFn();
+    });
+  }
+  banner.hidden = false;
+}
+
+function hideErrorBanner(context) {
+  const banner = document.querySelector(`[data-error-for="${context}"]`);
+  if (banner) banner.hidden = true;
+}
+
+function showGlobalSuccess(message, autoDismissMs) {
+  const banner = document.getElementById("global-banner");
+  if (!banner) return;
+  banner.className = "success-banner";
+  banner.innerHTML = `<span class="success-banner-text"></span>`;
+  banner.querySelector(".success-banner-text").textContent = message;
+  banner.hidden = false;
+  if (globalBannerTimer) clearTimeout(globalBannerTimer);
+  globalBannerTimer = setTimeout(hideGlobalBanner, autoDismissMs || 5000);
+}
+
+function showGlobalError(message, retryFn) {
+  const banner = document.getElementById("global-banner");
+  if (!banner) return;
+  banner.className = "error-banner";
+  banner.innerHTML = `<span class="error-banner-text"></span><button class="ghost-button error-retry-btn" type="button">Retry</button>`;
+  banner.querySelector(".error-banner-text").textContent = message;
+  banner.querySelector(".error-retry-btn").addEventListener("click", () => {
+    hideGlobalBanner();
+    if (typeof retryFn === "function") retryFn();
+  });
+  banner.hidden = false;
+  if (globalBannerTimer) { clearTimeout(globalBannerTimer); globalBannerTimer = null; }
+}
+
+function hideGlobalBanner() {
+  const banner = document.getElementById("global-banner");
+  if (banner) banner.hidden = true;
+}
+
+// ── Empty-state visibility driven solely by backend_state ──────────
+function updateEmptyStates(backendState) {
+  const running = backendState === "running";
+  [["software", "[data-content-for='software']"], ["stats", "[data-content-for='stats']"]].forEach(([ctx, contentSel]) => {
+    const empty = document.querySelector(`[data-empty-for="${ctx}"]`);
+    const content = document.querySelector(contentSel);
+    if (empty) empty.hidden = running;
+    if (content) content.style.display = running ? "" : "none";
   });
 }
 
@@ -453,13 +636,13 @@ function handleInstall(button) {
           const row = button.closest("tr");
           if (row) row.querySelector(".status-cell").textContent = "Available";
         } else {
-          alert("Error removing: " + (data.error || "Unknown error"));
+          showErrorBanner("software", "Failed to remove " + pkg + ": " + (data.error || "Unknown error"), () => button.click());
           button.textContent = "Remove";
           button.disabled = false;
         }
       })
       .catch(err => {
-        alert("Error: " + err);
+        showErrorBanner("software", "Connection error while removing " + pkg, () => button.click());
         button.textContent = "Remove";
         button.disabled = false;
       });
@@ -478,13 +661,13 @@ function handleInstall(button) {
           const row = button.closest("tr");
           if (row) row.querySelector(".status-cell").textContent = "Installed";
         } else {
-          alert("Error installing: " + (data.error || "Unknown error"));
+          showErrorBanner("software", "Failed to install " + pkg + ": " + (data.error || "Unknown error"), () => button.click());
           button.textContent = "Install";
           button.disabled = false;
         }
       })
       .catch(err => {
-        alert("Error: " + err);
+        showErrorBanner("software", "Connection error while installing " + pkg, () => button.click());
         button.textContent = "Install";
         button.disabled = false;
       });
@@ -501,6 +684,8 @@ function fetchStatus() {
         return {
             status: data.status,
             error: data.error,
+            backend_state: data.backend_state || "idle",
+            progress: (data.progress !== null && data.progress !== undefined) ? data.progress : null,
             cpu: (data.cpu !== null && data.cpu !== undefined) ? data.cpu : null,
             ram: data.ram && typeof data.ram === 'object' ? data.ram : { used: "0", total: "0" },
             disk: data.disk && typeof data.disk === 'object' ? data.disk : { used: "0", total: "0" },
@@ -510,7 +695,7 @@ function fetchStatus() {
     })
     .catch(err => {
         return {
-            status: "error", error: "Connection failed", cpu: 0, ram: { used: "0", total: "0" }, disk: { used: "0", total: "0" }, battery: null, uptime: null
+            status: "error", error: "Connection failed", backend_state: "error", progress: null, cpu: 0, ram: { used: "0", total: "0" }, disk: { used: "0", total: "0" }, battery: null, uptime: null
         };
     });
 }

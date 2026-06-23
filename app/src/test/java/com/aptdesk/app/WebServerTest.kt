@@ -239,6 +239,49 @@ class WebServerTest {
     }
 
     @Test
+    fun testHandleStatusBackendState() {
+        // getSystemService returns a generic Any mock under relaxed mockk; stub it with a
+        // real ActivityManager mock so handleStatus takes its success path instead of the
+        // ClassCastException catch.
+        every { context.getSystemService(Context.ACTIVITY_SERVICE) } returns mockk<android.app.ActivityManager>(relaxed = true)
+
+        // Success path: backend_state reflects AptDeskState, progress is integer when > 0
+        AptDeskState.state.value = AptDeskState.State.DownloadingRootfs
+        AptDeskState.progress.value = 42
+
+        val resp = sendRequest("GET", "/api/status")
+        assertEquals(200, resp.status)
+        val json = JSONObject(resp.body)
+        assertEquals("downloading_rootfs", json.getString("backend_state"))
+        assertEquals(42, json.getInt("progress"))
+
+        // progress is null when 0
+        AptDeskState.state.value = AptDeskState.State.Error("test")
+        AptDeskState.progress.value = 0
+        val resp2 = sendRequest("GET", "/api/status")
+        assertEquals(200, resp2.status)
+        val json2 = JSONObject(resp2.body)
+        assertEquals("error", json2.getString("backend_state"))
+        assertTrue(json2.isNull("progress"))
+
+        AptDeskState.reset()
+    }
+
+    @Test
+    fun testHandleStatusErrorFallback() {
+        // Force handleStatus into its catch block: the error fallback must still
+        // expose backend_state="error" and progress=null so the frontend never
+        // sees undefined fields.
+        every { context.getSystemService(any()) } throws RuntimeException("boom")
+
+        val resp = sendRequest("GET", "/api/status")
+        assertEquals(500, resp.status)
+        val json = JSONObject(resp.body)
+        assertEquals("error", json.getString("backend_state"))
+        assertTrue(json.isNull("progress"))
+    }
+
+    @Test
     fun testHandleRestart() {
         // 1. GET not allowed (405)
         val resp1 = sendRequest("GET", "/api/restart")

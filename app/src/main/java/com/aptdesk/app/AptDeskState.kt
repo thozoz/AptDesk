@@ -12,12 +12,14 @@ object AptDeskState {
     }
 
     sealed class State {
-        object Idle : State()
-        object DownloadingRootfs : State()
-        object ExtractingRootfs : State()
-        object ExtractingAssets : State()
-        object StartingBackend : State()
-        data class Running(val ip: String) : State()
-        data class Error(val message: String) : State()
+        abstract val stateName: String
+
+        object Idle : State() { override val stateName = "idle" }
+        object DownloadingRootfs : State() { override val stateName = "downloading_rootfs" }
+        object ExtractingRootfs : State() { override val stateName = "extracting_rootfs" }
+        object ExtractingAssets : State() { override val stateName = "copying_assets" }
+        object StartingBackend : State() { override val stateName = "starting_backend" }
+        data class Running(val ip: String) : State() { override val stateName = "running" }
+        data class Error(val message: String) : State() { override val stateName = "error" }
     }
 }

@@ -57,6 +57,8 @@ class WebServer(
 
             val status = JSONObject().apply {
                 put("status", if (prootManager.isRunning()) "running" else "stopped")
+                put("backend_state", AptDeskState.state.value.stateName)
+                put("progress", if (AptDeskState.progress.value > 0) AptDeskState.progress.value else JSONObject.NULL)
                 put("ip", NetworkInfo.getLocalIpAddress())
                 
                 val ram = JSONObject().apply {
@@ -89,6 +91,8 @@ class WebServer(
             android.util.Log.e("AptDeskWebServer", "Error in handleStatus", e)
             val fallback = JSONObject().apply {
                 put("status", "error")
+                put("backend_state", "error")
+                put("progress", JSONObject.NULL)
                 put("error", e.message)
             }
             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", fallback.toString())

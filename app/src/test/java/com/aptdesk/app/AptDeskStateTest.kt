@@ -40,6 +40,17 @@ class AptDeskStateTest {
     }
 
     @Test
+    fun testStateNameMapping() {
+        assertEquals("idle", AptDeskState.State.Idle.stateName)
+        assertEquals("downloading_rootfs", AptDeskState.State.DownloadingRootfs.stateName)
+        assertEquals("extracting_rootfs", AptDeskState.State.ExtractingRootfs.stateName)
+        assertEquals("copying_assets", AptDeskState.State.ExtractingAssets.stateName)
+        assertEquals("starting_backend", AptDeskState.State.StartingBackend.stateName)
+        assertEquals("running", AptDeskState.State.Running("192.168.1.1").stateName)
+        assertEquals("error", AptDeskState.State.Error("msg").stateName)
+    }
+
+    @Test
     fun testProgressUpdates() {
         AptDeskState.progress.value = 0
         assertEquals(0, AptDeskState.progress.value)
