@@ -55,9 +55,17 @@ class WebServer(
             val freeDisk = statFs.availableBytes
             val usedDisk = totalDisk - freeDisk
 
+            // The resolution Xvfb was actually started with (both MainService and
+            // handleRestart launch the desktop from this pref). Exposing it lets the
+            // dashboard settings menu mirror the live screen res instead of drifting
+            // from a speculative localStorage value after an unexpected restart.
+            val currentResolution = context.getSharedPreferences("aptdesk_prefs", Context.MODE_PRIVATE)
+                .getString("resolution", "1280x720") ?: "1280x720"
+
             val status = JSONObject().apply {
                 put("status", if (prootManager.isRunning()) "running" else "stopped")
                 put("backend_state", AptDeskState.state.value.stateName)
+                put("resolution", currentResolution)
                 put("progress", if (AptDeskState.progress.value > 0) AptDeskState.progress.value else JSONObject.NULL)
                 put("ip", NetworkInfo.getLocalIpAddress())
                 
@@ -296,6 +304,27 @@ class WebServer(
 
             prootManager.stop()
             prootManager.start(resolution, enableGpu)
+
+            // Don't report success until the critical services are actually back up.
+            // A restart can leave the wrapper alive while Xvfb/x0vncserver/caddy died
+            // racing the previous run's lock/port; claiming "restarted" then would
+            // strand the dashboard (unreachable) showing a healthy state.
+            var healthy = false
+            for (attempt in 1..RESTART_HEALTH_ATTEMPTS) {
+                if (prootManager.verifyHealthy()) {
+                    healthy = true
+                    break
+                }
+                Thread.sleep(RESTART_HEALTH_INTERVAL_MS)
+            }
+            if (!healthy) {
+                Log.e("AptDeskWebServer", "Restart: critical services did not come up within health window")
+                return newFixedLengthResponse(
+                    Response.Status.INTERNAL_ERROR,
+                    "application/json",
+                    """{"error":"Restart failed: services did not come up"}"""
+                )
+            }
             return newFixedLengthResponse(
                 Response.Status.OK,
                 "application/json",
@@ -478,5 +507,12 @@ class WebServer(
                 )
             }
         }
+    }
+
+    companion object {
+        // Post-restart health window: services bring-up (Xvfb readiness + xfce/vnc
+        // launch) takes a few seconds, so poll ~15s before declaring restart failed.
+        private const val RESTART_HEALTH_ATTEMPTS = 15
+        private const val RESTART_HEALTH_INTERVAL_MS = 1000L
     }
 }

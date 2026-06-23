@@ -373,8 +373,10 @@ function showSettingsModal() {
       const oldResolution = localStorage.getItem('aptdesk.resolution') || '1280x720';
       const oldEnableGpu = localStorage.getItem('aptdesk.enableGpu') === 'true';
 
-      // Save to localStorage
-      localStorage.setItem('aptdesk.resolution', resolution);
+      // Save to localStorage. Resolution is deliberately NOT persisted here — it is
+      // mirrored from the backend's live value on each status poll (and on restart
+      // success below), so the menu can never show a resolution Xvfb isn't running.
+      // Writing it speculatively would desync if the user cancels the restart.
       localStorage.setItem('aptdesk.autoConnect', autoConnect.toString());
       localStorage.setItem('aptdesk.enableGpu', enableGpu.toString());
       
@@ -398,6 +400,10 @@ function showSettingsModal() {
           .then(res => res.json())
           .then(data => {
             if (data.status === 'restarted') {
+              // Restart confirmed healthy by the backend — persist the now-live
+              // resolution so the menu reflects it immediately (the poll would
+              // otherwise catch up within one cycle).
+              localStorage.setItem('aptdesk.resolution', resolution);
               showGlobalSuccess('Backend restarted with new settings', 5000);
               const iframe = document.getElementById('vnc-iframe');
               if (iframe) {
@@ -508,6 +514,14 @@ function updateStatus() {
 
       setStatText("uptime-detail", status.uptime || '--');
       setStatText("uptime", `Up ${status.uptime || '--'}`);
+
+      // Backend is the single source of truth for the live screen resolution.
+      // Mirror it into the settings store so the Settings menu always shows what
+      // Xvfb is actually running — even after an unexpected restart that the menu
+      // didn't trigger. Self-heals any drift within one poll cycle.
+      if (status.resolution) {
+        localStorage.setItem('aptdesk.resolution', status.resolution);
+      }
 
       const bat = status.battery;
       if (bat) {
@@ -781,7 +795,8 @@ function fetchStatus() {
             ram: data.ram && typeof data.ram === 'object' ? data.ram : { used: "0", total: "0" },
             disk: data.disk && typeof data.disk === 'object' ? data.disk : { used: "0", total: "0" },
             battery: data.battery && typeof data.battery === 'object' ? data.battery : null,
-            uptime: data.uptime || null
+            uptime: data.uptime || null,
+            resolution: data.resolution || null
         };
     })
     .catch(err => {

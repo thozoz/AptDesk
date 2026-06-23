@@ -6,6 +6,7 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 class ProotManager(
     private val context: Context,
@@ -113,12 +114,30 @@ class ProotManager(
     }
 
     fun stop() {
-        process?.destroy()
+        // Block until the wrapper (and via --kill-on-exit, its in-chroot children)
+        // have actually exited before returning. A restart calls stop() then start()
+        // back-to-back; if we returned while the old proot was still tearing down,
+        // the new Xvfb/caddy would race the dying ones for display :0 / port :8080
+        // and die, leaving the wrapper alive but every service dead.
+        process?.let { p ->
+            p.destroy()
+            if (!p.waitFor(STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+                p.destroyForcibly()
+                p.waitFor(STOP_FORCE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            }
+        }
         process = null
-        virglProcess?.destroy()
+        virglProcess?.let { p ->
+            p.destroy()
+            if (!p.waitFor(STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+                p.destroyForcibly()
+            }
+        }
         virglProcess = null
         logThread?.interrupt()
         logThread = null
+        // Mop up any in-chroot services that outlived the wrapper, then confirm the
+        // ports/locks they held are released before any subsequent start().
         killOrphanedProcesses()
     }
 
@@ -243,7 +262,11 @@ class ProotManager(
         # Fix x0vncserver hostname resolution crash
         echo "127.0.0.1 localhost $(hostname 2>/dev/null || echo aptdesk)" > /etc/hosts
 
-        Xvfb :0 -screen 0 ${resolution}x24 -ac &
+        # Clear any stale X lock/socket left by a previous (possibly unclean) run so
+        # a restart can rebind display :0 instead of dying with "server already active
+        # for display 0". -nolock stops Xvfb recreating the lock we just removed.
+        rm -f /tmp/.X0-lock /tmp/.X11-unix/X0 2>/dev/null || true
+        Xvfb :0 -screen 0 ${resolution}x24 -ac -nolock &
 
         # X-independent services do not need to wait on X11 readiness, so start
         # them now in parallel with the Xvfb boot/poll below instead of serially
@@ -329,5 +352,8 @@ EOF
 
     companion object {
         private const val TAG = "ProotManager"
+        // Grace period for a clean SIGTERM shutdown before we SIGKILL the wrapper.
+        private const val STOP_TIMEOUT_MS = 3000L
+        private const val STOP_FORCE_TIMEOUT_MS = 2000L
     }
 }

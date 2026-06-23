@@ -294,6 +294,8 @@ class WebServerTest {
         // 2. POST triggers stop and start (explicit valid resolution: the relaxed
         // context mock's SharedPreferences.getString does not honor the default
         // parameter, so omitting resolution here would hit the new validation gate)
+        // verifyHealthy must report true or the post-restart health poll would spin.
+        every { prootManager.verifyHealthy() } returns true
         val resp2 = sendRequest("POST", "/api/restart", "resolution=1280x720")
         assertEquals(200, resp2.status)
         assertEquals("""{"status":"restarted"}""", resp2.body)
@@ -314,6 +316,7 @@ class WebServerTest {
 
     @Test
     fun testRestartAcceptsValidResolution() {
+        every { prootManager.verifyHealthy() } returns true
         val resp = sendRequest("POST", "/api/restart", "resolution=1280x720")
         assertEquals(200, resp.status)
         assertEquals("""{"status":"restarted"}""", resp.body)
