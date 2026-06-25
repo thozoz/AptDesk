@@ -6,6 +6,73 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// BUILD-01/BUILD-02: compile the Svelte+Vite frontend into src/main/assets/www
+// before assets are merged, so the packaged APK never ships a stale dashboard.
+// The Vite build (outDir -> assets/www, emptyOutDir:false) writes index.html +
+// hashed assets/ while leaving the runtime-only www/bin and www/libs untouched.
+val frontendDir = rootProject.file("frontend")
+val isWindows = System.getProperty("os.name").lowercase().contains("win")
+
+val buildFrontend by tasks.registering(Exec::class) {
+    group = "build"
+    description = "Build the Svelte/Vite dashboard into src/main/assets/www."
+    workingDir = frontendDir
+
+    // Re-run only when frontend sources or the manifest change; the compiled
+    // bundle under assets/www is the output Gradle tracks for up-to-date checks.
+    inputs.dir(File(frontendDir, "src"))
+    inputs.file(File(frontendDir, "package.json"))
+    inputs.file(File(frontendDir, "vite.config.js"))
+    inputs.file(File(frontendDir, "index.html"))
+    outputs.file(File(projectDir, "src/main/assets/www/index.html"))
+    outputs.dir(File(projectDir, "src/main/assets/www/assets"))
+
+    val npmCmd = if (isWindows) "npm.cmd" else "npm"
+    // `npm ci` when a lockfile exists (reproducible CI installs), else `npm install`.
+    val installArg = if (File(frontendDir, "package-lock.json").exists()) "ci" else "install"
+
+    // Warn-and-skip when Node/npm is unavailable instead of failing the whole
+    // Android build: developers without a Node toolchain can still assemble the
+    // APK using whatever bundle is already present under assets/www. CI and
+    // release machines are expected to have Node, so the dashboard stays fresh.
+    val npmOnPath = System.getenv("PATH")
+        ?.split(File.pathSeparator)
+        ?.any { dir ->
+            File(dir, npmCmd).exists() || (isWindows && File(dir, "npm.exe").exists())
+        } ?: false
+
+    if (frontendDir.exists() && npmOnPath) {
+        commandLine(npmCmd, "run", "build")
+        // Ensure deps exist before the first build on a clean checkout.
+        doFirst {
+            if (!File(frontendDir, "node_modules").exists()) {
+                exec {
+                    workingDir = frontendDir
+                    commandLine(npmCmd, installArg)
+                }
+            }
+        }
+    } else {
+        // No-op placeholder keeps the task graph valid; emit a clear warning.
+        commandLine(if (isWindows) "cmd" else "sh", if (isWindows) "/c" else "-c", "echo")
+        doFirst {
+            logger.warn(
+                "⚠ buildFrontend skipped: " +
+                    (if (!frontendDir.exists()) "frontend/ not found. "
+                    else "npm not found on PATH. ") +
+                    "The APK will ship the existing assets/www bundle, which may be stale. " +
+                    "Install Node.js and rebuild to refresh the dashboard."
+            )
+        }
+    }
+}
+
+// BUILD-02: every variant (assembleDebug/assembleRelease/bundleRelease) runs
+// preBuild, so depending on it here guarantees a fresh dashboard before merge.
+tasks.named("preBuild") {
+    dependsOn(buildFrontend)
+}
+
 // Release signing secrets live in an untracked keystore.properties at the repo root
 // (see keystore.properties.example). When absent (debug/CI without a keystore), the
 // release build still configures cleanly and is simply left unsigned.

@@ -1,0 +1,106 @@
+/*
+ * AptDesk design tokens — 05-UI-SPEC.md visual contract (v0.4.0 Frontend Overhaul).
+ * Palette source: opencode.ai docs — warm near-black base + pale-yellow accent.
+ * Anti-references: generic "AI app" look, purple/violet, gradients, neon/glow,
+ * shadow-heavy cards. All spacing multiples of 4. Status colors carry meaning only.
+ *
+ * Phases 6-8 inherit these tokens. Components MUST consume these vars, never
+ * hardcode hex literals (the one permitted shadow is the top bar).
+ */
+
+:root {
+  /* ---- Color: surfaces (60/30 split) ---- */
+  --color-bg: #141010;              /* dominant page background (warm near-black) */
+  --color-surface: #1e1b1b;         /* cards, top bar, sidebar, nav, inputs */
+  --color-surface-raised: #1a1717;  /* raised surfaces / skeleton blocks */
+  --color-surface-hover: #2d2a2a;   /* hover fills */
+  --color-border: #3a3636;          /* weak border */
+  --color-border-strong: #474343;   /* strong border */
+
+  /* ---- Color: accent (10%, reserved usage only) ---- */
+  --color-accent: #f4f7c4;          /* pale yellow — CTA fill / active nav / focus */
+  --color-accent-deep: #cfd64a;     /* accent-colored text/links, left-border */
+  --color-destructive: #e5484d;     /* destructive actions / error state only */
+
+  /* ---- Color: text ---- */
+  --text-primary: #f1eded;
+  --text-body: #b6b1b1;
+  --text-muted: #999797;
+  --text-faint: #6f6a6a;
+
+  /* ---- Color: status (meaning only — indicator + state components) ---- */
+  --color-status-running: #5fb350;
+  --color-status-starting: #f0883e; /* orange, deliberately not yellow */
+  --color-status-down: #6f6a6a;
+  --color-status-error: #e5484d;
+
+  /* ---- Spacing scale (multiples of 4) ---- */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+
+  /* ---- Typography: families ---- */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
+
+  /* ---- Typography: roles (sizes) ---- */
+  --font-body: 14px;
+  --font-label: 12px;
+  --font-heading: 18px;
+  --font-display: 26px;
+
+  /* ---- Typography: weights ---- */
+  --weight-body: 400;
+  --weight-label: 500;
+  --weight-heading: 600;
+  --weight-display: 600;
+
+  /* ---- Typography: line heights ---- */
+  --line-body: 1.5;
+  --line-label: 1.4;
+  --line-heading: 1.3;
+  --line-display: 1.2;
+
+  /* Convenience aliases used by some components (size + role pairing). */
+  --text-body-size: 14px;
+  --text-label-size: 12px;
+  --text-heading-size: 18px;
+  --text-display-size: 26px;
+
+  /* ---- Radius ---- */
+  --radius: 6px;            /* inputs / buttons / cards */
+  --radius-pill: 999px;     /* status pill only */
+
+  /* ---- Breakpoints (documentation references — not usable inside @media) ---- */
+  --bp-sm: 640px;
+  --bp-lg: 1024px;
+}
+
+/* Global base — flat, warm near-black, system font stack (no web-font payload). */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+  color: var(--text-body);
+  font-family: var(--font-sans);
+  font-size: var(--font-body);
+  line-height: var(--line-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Accent focus ring, applied app-wide for keyboard users. */
+:focus-visible {
+  outline: 2px solid var(--color-accent-deep);
+  outline-offset: 2px;
+}
