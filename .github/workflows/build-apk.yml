@@ -37,8 +37,13 @@ jobs:
           java-version: 17
           cache: gradle
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # ubuntu-* runners ship an Android SDK; just ensure API 35 + build-tools exist.
+      # (android-actions/setup-android@v3 is unusable: it installs the removed
+      # obsolete `tools` package and fails on current images.)
+      - name: Ensure Android API 35 SDK packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-35" "build-tools;35.0.0"
 
       - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace
